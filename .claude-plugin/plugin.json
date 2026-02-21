@@ -1,0 +1,24 @@
+{
+  "name": "consult",
+  "version": "1.0.0",
+  "description": "Cross-tool AI consultation: get second opinions from Gemini, Codex, Claude, OpenCode, or Copilot CLI",
+  "author": {
+    "name": "Avi Fenesh",
+    "email": "[email protected]",
+    "url": "https://github.com/avifenesh"
+  },
+  "homepage": "https://github.com/agent-sh/consult",
+  "repository": "https://github.com/agent-sh/consult",
+  "license": "MIT",
+  "keywords": [
+    "consultation",
+    "cross-tool",
+    "second-opinion",
+    "gemini",
+    "codex",
+    "claude",
+    "opencode",
+    "copilot",
+    "multi-model"
+  ]
+}
