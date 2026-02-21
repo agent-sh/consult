@@ -1,0 +1,11 @@
+{
+  "agents": [
+    "consult-agent"
+  ],
+  "skills": [
+    "consult"
+  ],
+  "commands": [
+    "consult"
+  ]
+}
