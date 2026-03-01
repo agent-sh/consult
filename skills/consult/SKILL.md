@@ -36,7 +36,7 @@ Question text is everything in `$ARGUMENTS` except the flags above.
 ### Claude
 
 ```
-Command: claude -p "QUESTION" --output-format json --model "MODEL" --max-turns TURNS --allowedTools "Read,Glob,Grep"
+Command: env -u CLAUDECODE claude -p "QUESTION" --output-format json --model "MODEL" --max-turns TURNS --allowedTools "Read,Glob,Grep"
 Session resume: --resume "SESSION_ID"
 ```
 
@@ -76,12 +76,13 @@ Models: gemini-2.5-flash, gemini-2.5-pro, gemini-3-flash-preview, gemini-3-pro-p
 ### Codex
 
 ```
-Command: codex exec "QUESTION" --json -m "MODEL" -c model_reasoning_effort="LEVEL"
-Session resume: codex exec resume SESSION_ID "QUESTION" --json
-Session resume (latest): codex exec resume --last "QUESTION" --json
+Command: codex exec "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"
+Session resume: codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"
+Session resume (latest): codex exec resume --last "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"
 ```
 
 Note: `codex exec` is the non-interactive/headless mode. There is no `-q` flag. The TUI mode is `codex` (no subcommand).
+`--skip-git-repo-check` is only allowed after passing the trust gate in Command Building Step 1b.
 
 Models: gpt-5.3-codex
 
@@ -94,7 +95,7 @@ Models: gpt-5.3-codex
 
 **Parse output**: `JSON.parse(stdout).message` or raw text
 **Session ID**: Codex prints a resume hint at session end (e.g., `codex resume SESSION_ID`). Extract the session ID from stdout or from `JSON.parse(stdout).session_id` if available.
-**Continuable**: Yes. Sessions are stored as JSONL rollout files at `~/.codex/sessions/`. Non-interactive resume uses `codex exec resume SESSION_ID "follow-up prompt" --json`. Use `--last` instead of a session ID to resume the most recent session.
+**Continuable**: Yes. Sessions are stored as JSONL rollout files at `~/.codex/sessions/`. Non-interactive resume uses `codex exec resume "SESSION_ID" "follow-up prompt" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`. Use `--last` instead of a session ID to resume the most recent session.
 
 ### OpenCode
 
@@ -139,6 +140,7 @@ Before building commands, validate all user-provided arguments:
 - **--tool**: MUST be one of: gemini, codex, claude, opencode, copilot. Reject all other values.
 - **--effort**: MUST be one of: low, medium, high, max. Default to medium.
 - **--model**: Allow any string, but quote it in the command.
+- **--continue=SESSION_ID**: If provided, SESSION_ID MUST match `^(?!-)[A-Za-z0-9._:-]+$`. Reject values that contain spaces, leading dashes, or shell metacharacters.
 - **--context=file=PATH**: MUST resolve within the project directory. Reject absolute paths outside cwd. Additional checks:
   1. **Block UNC paths** (Windows): Reject paths starting with `\\` or `//` (network shares)
   2. **Resolve canonical path**: Use the Read tool to read the file (do NOT use shell commands). Before reading, resolve the path: join `cwd + PATH`, then normalize (collapse `.`, `..`, resolve symlinks)
@@ -153,13 +155,23 @@ Given the parsed arguments, build the complete CLI command. All user-provided va
 
 If `--model` is specified, use it directly. Otherwise, use the effort-based model from the provider table above.
 
+### Step 1b: Trust Gate for Codex `--skip-git-repo-check`
+
+Before using any Codex template that includes `--skip-git-repo-check`, perform this gate:
+
+1. Verify the consultation is running from the current project working directory (the same workspace where `/consult` was invoked), not an arbitrary external path.
+2. Verify the user explicitly selected `--tool=codex` (or equivalent tool picker result).
+3. If either check fails, reject execution with `[ERROR] Refusing Codex --skip-git-repo-check outside trusted working directory`.
+
+Codex templates in this skill assume this trust gate has already passed.
+
 ### Step 2: Build Command String
 
 Use the command template from the provider's configuration section. Substitute QUESTION, MODEL, TURNS, LEVEL, and VARIANT with resolved values.
 
 If continuing a session:
-- **Claude or Gemini**: append `--resume SESSION_ID` to the command.
-- **Codex**: use `codex exec resume SESSION_ID "QUESTION" --json` instead of the standard command. Use `--last` instead of a session ID for the most recent session.
+- **Claude or Gemini**: append `--resume "SESSION_ID"` to the command.
+- **Codex**: use `codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"` instead of the standard command. Use `--last` instead of a session ID for the most recent session.
 - **OpenCode**: append `--session SESSION_ID` to the command. If no session_id is saved, use `--continue` instead (resumes most recent session).
 If OpenCode at max effort: append `--thinking`.
 
@@ -184,13 +196,13 @@ User-provided question text MUST NOT be interpolated into shell command strings.
 
 | Provider | Safe command pattern |
 |----------|---------------------|
-| Claude | `claude -p - --output-format json --model "MODEL" --max-turns TURNS --allowedTools "Read,Glob,Grep" < "{AI_STATE_DIR}/consult/question.tmp"` |
-| Claude (resume) | `claude -p - --output-format json --model "MODEL" --max-turns TURNS --allowedTools "Read,Glob,Grep" --resume "SESSION_ID" < "{AI_STATE_DIR}/consult/question.tmp"` |
+| Claude | `env -u CLAUDECODE claude -p - --output-format json --model "MODEL" --max-turns TURNS --allowedTools "Read,Glob,Grep" < "{AI_STATE_DIR}/consult/question.tmp"` |
+| Claude (resume) | `env -u CLAUDECODE claude -p - --output-format json --model "MODEL" --max-turns TURNS --allowedTools "Read,Glob,Grep" --resume "SESSION_ID" < "{AI_STATE_DIR}/consult/question.tmp"` |
 | Gemini | `gemini -p - --output-format json -m "MODEL" < "{AI_STATE_DIR}/consult/question.tmp"` |
 | Gemini (resume) | `gemini -p - --output-format json -m "MODEL" --resume "SESSION_ID" < "{AI_STATE_DIR}/consult/question.tmp"` |
-| Codex | `codex exec "$(cat "{AI_STATE_DIR}/consult/question.tmp")" --json -m "MODEL" -c model_reasoning_effort="LEVEL"` (Codex exec lacks stdin mode -- cat reads from platform-controlled path, not user input) |
-| Codex (resume) | `codex exec resume SESSION_ID "$(cat "{AI_STATE_DIR}/consult/question.tmp")" --json -m "MODEL"` |
-| Codex (resume latest) | `codex exec resume --last "$(cat "{AI_STATE_DIR}/consult/question.tmp")" --json -m "MODEL"` |
+| Codex | `codex exec "$(cat "{AI_STATE_DIR}/consult/question.tmp")" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"` (Codex exec lacks stdin mode -- cat reads from platform-controlled path, not user input) |
+| Codex (resume) | `codex exec resume "SESSION_ID" "$(cat "{AI_STATE_DIR}/consult/question.tmp")" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"` |
+| Codex (resume latest) | `codex exec resume --last "$(cat "{AI_STATE_DIR}/consult/question.tmp")" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"` |
 | OpenCode | `opencode run - --format json --model "MODEL" --variant "VARIANT" < "{AI_STATE_DIR}/consult/question.tmp"` |
 | OpenCode (resume by ID) | `opencode run - --format json --model "MODEL" --variant "VARIANT" --session "SESSION_ID" < "{AI_STATE_DIR}/consult/question.tmp"` |
 | OpenCode (resume latest) | `opencode run - --format json --model "MODEL" --variant "VARIANT" --continue < "{AI_STATE_DIR}/consult/question.tmp"` |
