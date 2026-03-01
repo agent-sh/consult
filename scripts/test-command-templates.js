@@ -24,9 +24,11 @@ function assertNotContains(text, pattern, message, failures) {
 const skill = read('skills/consult/SKILL.md');
 const agent = read('agents/consult-agent.md');
 const command = read('commands/consult.md');
-const constraintsSection = command.includes('## Constraints')
-  ? command.split('## Constraints')[1].split('## Execution')[0]
-  : command;
+const constraintsStart = command.indexOf('## Constraints');
+const executionStart = command.indexOf('## Execution');
+const constraintsSection = (constraintsStart !== -1 && executionStart !== -1 && executionStart > constraintsStart)
+  ? command.slice(constraintsStart, executionStart)
+  : '';
 
 const failures = [];
 const sessionIdPattern = /^(?!-)[A-Za-z0-9._:-]+$/;
@@ -61,29 +63,36 @@ assertContains(
 
 assertContains(
   skill,
-  /codex exec "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"/,
-  'SKILL.md Codex base template must include --skip-git-repo-check and reasoning effort.',
+  /codex exec "QUESTION" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"/,
+  'SKILL.md Codex base template must use conditional {SKIP_GIT_FLAG} and reasoning effort.',
   failures
 );
 
 assertContains(
   skill,
-  /codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"/,
-  'SKILL.md Codex resume template must quote SESSION_ID and include required flags.',
+  /codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"/,
+  'SKILL.md Codex resume template must quote SESSION_ID and use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   skill,
-  /codex exec resume --last "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"/,
-  'SKILL.md Codex resume --last template must include required flags.',
+  /codex exec resume --last "QUESTION" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"/,
+  'SKILL.md Codex resume --last template must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   skill,
-  /Non-interactive resume uses `codex exec resume "SESSION_ID" "follow-up prompt" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  /Non-interactive resume uses `codex exec resume "SESSION_ID" "follow-up prompt" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"`/,
   'SKILL.md must pin the Codex continuable resume guidance.',
+  failures
+);
+
+assertContains(
+  skill,
+  /\*\*Codex\*\*: use `codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md Step-2 Codex resume guidance must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
@@ -117,45 +126,49 @@ for (const id of invalidSessionIds) {
 
 assertContains(
   skill,
-  /codex exec "\$\(\s*cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\s*\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"/,
-  'SKILL.md safe Codex base temp-file template must include required flags.',
+  /codex exec "\$\(\s*cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\s*\)" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"/,
+  'SKILL.md safe Codex base temp-file template must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   skill,
-  /codex exec resume "SESSION_ID" "\$\(\s*cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\s*\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"/,
-  'SKILL.md safe Codex resume template must quote SESSION_ID and include required flags.',
+  /codex exec resume "SESSION_ID" "\$\(\s*cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\s*\)" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"/,
+  'SKILL.md safe Codex resume template must quote SESSION_ID and use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   skill,
-  /codex exec resume --last "\$\(\s*cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\s*\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"/,
-  'SKILL.md safe Codex resume --last template must include required flags.',
+  /codex exec resume --last "\$\(\s*cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\s*\)" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"/,
+  'SKILL.md safe Codex resume --last template must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   agent,
-  /question-1\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check -c model_reasoning_effort="high"/,
-  'consult-agent.md question-1 example must include safe flags.',
+  /question-1\.tmp"\)" --json -m "gpt-5\.3-codex" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
+  'consult-agent.md question-1 example must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   agent,
-  /question-2\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check -c model_reasoning_effort="high"/,
-  'consult-agent.md question-2 example must include safe flags.',
+  /question-2\.tmp"\)" --json -m "gpt-5\.3-codex" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
+  'consult-agent.md question-2 example must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   agent,
-  /question-3\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check -c model_reasoning_effort="high"/,
-  'consult-agent.md question-3 example must include safe flags.',
+  /question-3\.tmp"\)" --json -m "gpt-5\.3-codex" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
+  'consult-agent.md question-3 example must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
+
+if (!constraintsSection) {
+  failures.push('commands/consult.md must contain ## Constraints and ## Execution sections.');
+}
 
 assertContains(
   constraintsSection,
@@ -173,14 +186,14 @@ assertContains(
 
 assertContains(
   constraintsSection,
-  /only use `--skip-git-repo-check` after validating the working directory is trusted/,
-  'commands/consult.md constraints must explicitly gate --skip-git-repo-check usage.',
+  /resolve `SKIP_GIT_FLAG` via trust gate: empty in trusted git repos, `--skip-git-repo-check` only for trusted non-repo execution/,
+  'commands/consult.md constraints must define conditional SKIP_GIT_FLAG behavior.',
   failures
 );
 
 assertContains(
   constraintsSection,
-  /MUST enforce the Codex trust gate before using `--skip-git-repo-check`/,
+  /MUST enforce the Codex trust gate before setting `SKIP_GIT_FLAG` \(same project working directory \+ resolved active tool is Codex, including flag\/NLP\/picker\/`--continue` restore paths\)/,
   'commands/consult.md constraints must require Codex trust-gate enforcement.',
   failures
 );
@@ -199,6 +212,69 @@ assertContains(
   failures
 );
 
+assertContains(
+  skill,
+  /`\{SKIP_GIT_FLAG\}` MUST be set by Step 1b only\. Do not read `SKIP_GIT_FLAG` from inherited shell environment\./,
+  'SKILL.md must forbid inherited-environment SKIP_GIT_FLAG usage.',
+  failures
+);
+
+assertContains(
+  skill,
+  /Run `git rev-parse --is-inside-work-tree`/,
+  'SKILL.md trust gate must define git repo detection for SKIP_GIT_FLAG.',
+  failures
+);
+
+assertContains(
+  skill,
+  /if true: set `\{SKIP_GIT_FLAG}` to empty string/,
+  'SKILL.md trust gate must define empty SKIP_GIT_FLAG in trusted git repos.',
+  failures
+);
+
+assertContains(
+  skill,
+  /if false and checks 1-2 passed: set `\{SKIP_GIT_FLAG}` to `--skip-git-repo-check`/,
+  'SKILL.md trust gate must define conditional skip flag in trusted non-repo contexts.',
+  failures
+);
+
+assertContains(
+  skill,
+  /Verify the resolved active tool is Codex \(flag, NLP, picker, or restored `--continue` session\)\./,
+  'SKILL.md trust gate must account for all resolved Codex selection paths.',
+  failures
+);
+
+assertContains(
+  skill,
+  /model must match `\^\[A-Za-z0-9\._:\/-\]\+\$` \(reject spaces and shell metacharacters\)/,
+  'SKILL.md must require restored model validation for --continue flows.',
+  failures
+);
+
+assertContains(
+  skill,
+  /tool must still be in allow-list: gemini, codex, claude, opencode, copilot/,
+  'SKILL.md must require restored tool allow-list validation.',
+  failures
+);
+
+assertContains(
+  skill,
+  /session_id must match `\^\(\?!-\)\[A-Za-z0-9\._:-\]\+\$`/,
+  'SKILL.md must require restored session_id validation.',
+  failures
+);
+
+assertContains(
+  skill,
+  /reject with `\[ERROR\] Invalid restored session data`/,
+  'SKILL.md must define fail-closed behavior for invalid restored session data.',
+  failures
+);
+
 assertNotContains(
   skill,
   /codex exec resume SESSION_ID /,
@@ -208,10 +284,75 @@ assertNotContains(
 
 assertNotContains(
   skill,
-  /Command: claude -p "QUESTION"/,
-  'SKILL.md must not include Claude command templates without env -u CLAUDECODE.',
+  /Command: codex exec "QUESTION" --json -m "MODEL" --skip-git-repo-check/,
+  'SKILL.md must not hardcode skip-git in the Codex base provider template.',
   failures
 );
+
+assertNotContains(
+  skill,
+  /Session resume: codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" --skip-git-repo-check/,
+  'SKILL.md must not hardcode skip-git in the Codex resume provider template.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /Session resume \(latest\): codex exec resume --last "QUESTION" --json -m "MODEL" --skip-git-repo-check/,
+  'SKILL.md must not hardcode skip-git in the Codex resume-latest provider template.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /\*\*Codex\*\*: use `codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md Step-2 Codex resume guidance must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /\| Codex \| `codex exec "\$\(cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md safe table Codex base entry must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /\| Codex \(resume\) \| `codex exec resume "SESSION_ID" "\$\(cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md safe table Codex resume entry must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /\| Codex \(resume latest\) \| `codex exec resume --last "\$\(cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md safe table Codex resume-latest entry must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  agent,
+  /question-1\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check/,
+  'consult-agent.md question-1 example must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  agent,
+  /question-2\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check/,
+  'consult-agent.md question-2 example must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  agent,
+  /question-3\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check/,
+  'consult-agent.md question-3 example must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(skill, /Command: claude -p "QUESTION"/, 'SKILL.md must not include Claude command templates without env -u CLAUDECODE.', failures);
 
 if (failures.length > 0) {
   console.error('[ERROR] command template validation failed:');
