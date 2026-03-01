@@ -14,7 +14,7 @@ You are executing the /consult command. Your job is to parse the user's request 
 
 - NEVER expose API keys in commands or output
 - NEVER run with permission-bypassing flags (`--dangerously-skip-permissions`, `bypassPermissions`)
-- MUST use safe-mode defaults (`env -u CLAUDECODE ... --allowedTools "Read,Glob,Grep"` for Claude, `--skip-git-repo-check -c model_reasoning_effort` for Codex non-interactive exec mode only)
+- MUST use safe-mode defaults (`env -u CLAUDECODE ... --allowedTools "Read,Glob,Grep"` for Claude, `-c model_reasoning_effort` for Codex). For Codex non-interactive exec mode, only use `--skip-git-repo-check` after validating the working directory is trusted for this task.
 - MUST enforce 120s timeout on all tool executions
 - MUST validate tool names against allow-list: gemini, codex, claude, opencode, copilot (reject all others)
 - MUST validate `--context=file=PATH` is within the project directory (reject absolute paths outside cwd)

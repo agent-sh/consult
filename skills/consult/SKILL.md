@@ -139,7 +139,7 @@ Before building commands, validate all user-provided arguments:
 - **--tool**: MUST be one of: gemini, codex, claude, opencode, copilot. Reject all other values.
 - **--effort**: MUST be one of: low, medium, high, max. Default to medium.
 - **--model**: Allow any string, but quote it in the command.
-- **--continue=SESSION_ID**: If provided, SESSION_ID MUST match `^[A-Za-z0-9._:-]+$`. Reject values that contain spaces or shell metacharacters.
+- **--continue=SESSION_ID**: If provided, SESSION_ID MUST match `^(?!-)[A-Za-z0-9._:-]+$`. Reject values that contain spaces, leading dashes, or shell metacharacters.
 - **--context=file=PATH**: MUST resolve within the project directory. Reject absolute paths outside cwd. Additional checks:
   1. **Block UNC paths** (Windows): Reject paths starting with `\\` or `//` (network shares)
   2. **Resolve canonical path**: Use the Read tool to read the file (do NOT use shell commands). Before reading, resolve the path: join `cwd + PATH`, then normalize (collapse `.`, `..`, resolve symlinks)
@@ -159,7 +159,7 @@ If `--model` is specified, use it directly. Otherwise, use the effort-based mode
 Use the command template from the provider's configuration section. Substitute QUESTION, MODEL, TURNS, LEVEL, and VARIANT with resolved values.
 
 If continuing a session:
-- **Claude or Gemini**: append `--resume SESSION_ID` to the command.
+- **Claude or Gemini**: append `--resume "SESSION_ID"` to the command.
 - **Codex**: use `codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"` instead of the standard command. Use `--last` instead of a session ID for the most recent session.
 - **OpenCode**: append `--session SESSION_ID` to the command. If no session_id is saved, use `--continue` instead (resumes most recent session).
 If OpenCode at max effort: append `--thinking`.

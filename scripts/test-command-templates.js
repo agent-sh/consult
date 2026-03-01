@@ -24,9 +24,12 @@ function assertNotContains(text, pattern, message, failures) {
 const skill = read('skills/consult/SKILL.md');
 const agent = read('agents/consult-agent.md');
 const command = read('commands/consult.md');
+const constraintsSection = command.includes('## Constraints')
+  ? command.split('## Constraints')[1].split('## Execution')[0]
+  : command;
 
 const failures = [];
-const sessionIdPattern = /^[A-Za-z0-9._:-]+$/;
+const sessionIdPattern = /^(?!-)[A-Za-z0-9._:-]+$/;
 
 function validateSessionId(value) {
   return sessionIdPattern.test(value);
@@ -79,7 +82,7 @@ assertContains(
 
 assertContains(
   skill,
-  /\*\*--continue=SESSION_ID\*\*: If provided, SESSION_ID MUST match `\^\[A-Za-z0-9\._:-\]\+\$`\./,
+  /\*\*--continue=SESSION_ID\*\*: If provided, SESSION_ID MUST match `\^\(\?!-\)\[A-Za-z0-9\._:-\]\+\$`\./,
   'SKILL.md must document SESSION_ID validation.',
   failures
 );
@@ -91,12 +94,19 @@ for (const id of validSessionIds) {
   }
 }
 
-const invalidSessionIds = ['abc 123', '$(id)', 'x;rm', 'x|cat', '"quoted"'];
+const invalidSessionIds = ['abc 123', '$(id)', 'x;rm', 'x|cat', '"quoted"', '-abc123'];
 for (const id of invalidSessionIds) {
   if (validateSessionId(id)) {
     failures.push(`validateSessionId should reject "${id}".`);
   }
 }
+
+assertContains(
+  skill,
+  /codex exec "\$\(\s*cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\s*\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"/,
+  'SKILL.md safe Codex base temp-file template must include required flags.',
+  failures
+);
 
 assertContains(
   skill,
@@ -134,9 +144,37 @@ assertContains(
 );
 
 assertContains(
-  command,
-  /- MUST use safe-mode defaults \(`env -u CLAUDECODE \.\.\. --allowedTools "Read,Glob,Grep"` for Claude, `--skip-git-repo-check -c model_reasoning_effort` for Codex non-interactive exec mode only\)/,
-  'commands/consult.md constraints line must explicitly include Claude and Codex safety requirements.',
+  constraintsSection,
+  /env -u CLAUDECODE/,
+  'commands/consult.md constraints must include the Claude env-unset safety requirement.',
+  failures
+);
+
+assertContains(
+  constraintsSection,
+  /-c model_reasoning_effort/,
+  'commands/consult.md constraints must include the Codex reasoning-effort safety requirement.',
+  failures
+);
+
+assertContains(
+  constraintsSection,
+  /only use `--skip-git-repo-check` after validating the working directory is trusted/,
+  'commands/consult.md constraints must explicitly gate --skip-git-repo-check usage.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /codex exec resume SESSION_ID /,
+  'SKILL.md must not include unquoted Codex SESSION_ID resume templates.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /Command: claude -p "QUESTION"/,
+  'SKILL.md must not include Claude command templates without env -u CLAUDECODE.',
   failures
 );
 
