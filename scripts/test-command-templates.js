@@ -82,6 +82,20 @@ assertContains(
 
 assertContains(
   skill,
+  /Non-interactive resume uses `codex exec resume "SESSION_ID" "follow-up prompt" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md must pin the Codex continuable resume guidance.',
+  failures
+);
+
+assertContains(
+  skill,
+  /\*\*Claude or Gemini\*\*: append `--resume "SESSION_ID"` to the command\./,
+  'SKILL.md must pin quoted resume guidance for Claude/Gemini.',
+  failures
+);
+
+assertContains(
+  skill,
   /\*\*--continue=SESSION_ID\*\*: If provided, SESSION_ID MUST match `\^\(\?!-\)\[A-Za-z0-9\._:-\]\+\$`\./,
   'SKILL.md must document SESSION_ID validation.',
   failures
@@ -161,6 +175,27 @@ assertContains(
   constraintsSection,
   /only use `--skip-git-repo-check` after validating the working directory is trusted/,
   'commands/consult.md constraints must explicitly gate --skip-git-repo-check usage.',
+  failures
+);
+
+assertContains(
+  constraintsSection,
+  /MUST enforce the Codex trust gate before using `--skip-git-repo-check`/,
+  'commands/consult.md constraints must require Codex trust-gate enforcement.',
+  failures
+);
+
+assertContains(
+  skill,
+  /### Step 1b: Trust Gate for Codex `--skip-git-repo-check`/,
+  'SKILL.md must define an explicit Codex trust gate step.',
+  failures
+);
+
+assertContains(
+  skill,
+  /Refusing Codex --skip-git-repo-check outside trusted working directory/,
+  'SKILL.md trust gate must define a hard failure message.',
   failures
 );
 

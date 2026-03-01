@@ -82,6 +82,7 @@ Session resume (latest): codex exec resume --last "QUESTION" --json -m "MODEL" -
 ```
 
 Note: `codex exec` is the non-interactive/headless mode. There is no `-q` flag. The TUI mode is `codex` (no subcommand).
+`--skip-git-repo-check` is only allowed after passing the trust gate in Command Building Step 1b.
 
 Models: gpt-5.3-codex
 
@@ -153,6 +154,16 @@ Given the parsed arguments, build the complete CLI command. All user-provided va
 ### Step 1: Resolve Model
 
 If `--model` is specified, use it directly. Otherwise, use the effort-based model from the provider table above.
+
+### Step 1b: Trust Gate for Codex `--skip-git-repo-check`
+
+Before using any Codex template that includes `--skip-git-repo-check`, perform this gate:
+
+1. Verify the consultation is running from the current project working directory (the same workspace where `/consult` was invoked), not an arbitrary external path.
+2. Verify the user explicitly selected `--tool=codex` (or equivalent tool picker result).
+3. If either check fails, reject execution with `[ERROR] Refusing Codex --skip-git-repo-check outside trusted working directory`.
+
+Codex templates in this skill assume this trust gate has already passed.
 
 ### Step 2: Build Command String
 
