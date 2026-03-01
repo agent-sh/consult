@@ -162,7 +162,7 @@ If `--model` is specified, use it directly. Otherwise, use the effort-based mode
 Before using any Codex template, resolve `{SKIP_GIT_FLAG}` with this gate:
 
 1. Verify the consultation is running from the current project working directory (the same workspace where `/consult` was invoked), not an arbitrary external path.
-2. Verify the active tool is Codex, either by explicit `--tool=codex` selection or a restored Codex session from `--continue`.
+2. Verify the resolved active tool is Codex (flag, NLP, picker, or restored `--continue` session).
 3. Run `git rev-parse --is-inside-work-tree` in the current working directory:
    - if true: set `{SKIP_GIT_FLAG}` to empty string
    - if false and checks 1-2 passed: set `{SKIP_GIT_FLAG}` to `--skip-git-repo-check`

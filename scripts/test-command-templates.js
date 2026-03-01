@@ -193,7 +193,7 @@ assertContains(
 
 assertContains(
   constraintsSection,
-  /MUST enforce the Codex trust gate before setting `SKIP_GIT_FLAG`/,
+  /MUST enforce the Codex trust gate before setting `SKIP_GIT_FLAG` \(same project working directory \+ resolved active tool is Codex, including flag\/NLP\/picker\/`--continue` restore paths\)/,
   'commands/consult.md constraints must require Codex trust-gate enforcement.',
   failures
 );
@@ -242,8 +242,8 @@ assertContains(
 
 assertContains(
   skill,
-  /Verify the active tool is Codex, either by explicit `--tool=codex` selection or a restored Codex session from `--continue`\./,
-  'SKILL.md trust gate must account for both explicit codex and --continue restored codex sessions.',
+  /Verify the resolved active tool is Codex \(flag, NLP, picker, or restored `--continue` session\)\./,
+  'SKILL.md trust gate must account for all resolved Codex selection paths.',
   failures
 );
 
@@ -251,6 +251,27 @@ assertContains(
   skill,
   /model must match `\^\[A-Za-z0-9\._:\/-\]\+\$` \(reject spaces and shell metacharacters\)/,
   'SKILL.md must require restored model validation for --continue flows.',
+  failures
+);
+
+assertContains(
+  skill,
+  /tool must still be in allow-list: gemini, codex, claude, opencode, copilot/,
+  'SKILL.md must require restored tool allow-list validation.',
+  failures
+);
+
+assertContains(
+  skill,
+  /session_id must match `\^\(\?!-\)\[A-Za-z0-9\._:-\]\+\$`/,
+  'SKILL.md must require restored session_id validation.',
+  failures
+);
+
+assertContains(
+  skill,
+  /reject with `\[ERROR\] Invalid restored session data`/,
+  'SKILL.md must define fail-closed behavior for invalid restored session data.',
   failures
 );
 
@@ -286,6 +307,27 @@ assertNotContains(
   skill,
   /\*\*Codex\*\*: use `codex exec resume "SESSION_ID" "QUESTION" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
   'SKILL.md Step-2 Codex resume guidance must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /\| Codex \| `codex exec "\$\(cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md safe table Codex base entry must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /\| Codex \(resume\) \| `codex exec resume "SESSION_ID" "\$\(cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md safe table Codex resume entry must not hardcode skip-git.',
+  failures
+);
+
+assertNotContains(
+  skill,
+  /\| Codex \(resume latest\) \| `codex exec resume --last "\$\(cat "\{AI_STATE_DIR\}\/consult\/question\.tmp"\)" --json -m "MODEL" --skip-git-repo-check -c model_reasoning_effort="LEVEL"`/,
+  'SKILL.md safe table Codex resume-latest entry must not hardcode skip-git.',
   failures
 );
 

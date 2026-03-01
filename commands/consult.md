@@ -18,7 +18,7 @@ You are executing the /consult command. Your job is to parse the user's request 
 - MUST enforce 120s timeout on all tool executions
 - MUST validate tool names against allow-list: gemini, codex, claude, opencode, copilot (reject all others)
 - MUST validate `--context=file=PATH` is within the project directory (reject absolute paths outside cwd)
-- MUST enforce the Codex trust gate before setting `SKIP_GIT_FLAG` (same project working directory + Codex selected explicitly or restored from `--continue`)
+- MUST enforce the Codex trust gate before setting `SKIP_GIT_FLAG` (same project working directory + resolved active tool is Codex, including flag/NLP/picker/`--continue` restore paths)
 - MUST quote all user-provided values in shell commands to prevent injection
 - NEVER execute tools the user has not explicitly requested
 
