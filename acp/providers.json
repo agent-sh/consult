@@ -42,7 +42,7 @@
     "env": {},
     "name": "Kiro",
     "supportsModel": false,
-    "supportsContinue": false
+    "supportsContinue": true
   },
   "opencode": {
     "command": "opencode",
