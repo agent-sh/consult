@@ -18,7 +18,8 @@
 'use strict';
 
 const { readFileSync } = require('fs');
-const { resolve: resolvePath } = require('path');
+const { resolve: resolvePath, join: joinPath } = require('path');
+const { homedir } = require('os');
 const { AcpClient } = require('./client');
 const { ACP_PROVIDERS, detectAcpSupport } = require('./providers');
 
@@ -60,10 +61,12 @@ function sanitize(text) {
 const SESSION_ID_PATTERN = /^(?!-)[A-Za-z0-9._:-]+$/;
 
 function parseArgs(argv) {
-  const args = { detect: false };
+  const args = { detect: false, dryRun: false };
   for (const arg of argv.slice(2)) {
     if (arg === '--detect') {
       args.detect = true;
+    } else if (arg === '--dry-run') {
+      args.dryRun = true;
     } else if (arg.startsWith('--provider=')) {
       args.provider = arg.slice('--provider='.length);
     } else if (arg.startsWith('--question-file=')) {
@@ -90,7 +93,7 @@ function validateArgs(args) {
   } else if (!ACP_PROVIDERS[args.provider]) {
     errors.push(`Unknown provider: ${args.provider}. Valid: ${Object.keys(ACP_PROVIDERS).join(', ')}`);
   }
-  if (!args.detect) {
+  if (!args.detect && !args.dryRun) {
     if (!args.questionFile) {
       errors.push('--question-file is required');
     }
@@ -123,6 +126,42 @@ async function runDetect(providerName) {
   process.exit(result.available ? 0 : 1);
 }
 
+// --- Dry-run mode ---
+
+async function runDryRun(providerName) {
+  const provider = ACP_PROVIDERS[providerName];
+  const client = new AcpClient({
+    command: provider.command,
+    args: provider.args,
+    env: provider.env,
+    cwd: process.cwd(),
+    timeout: 15000,
+  });
+
+  try {
+    await client.connect();
+    const initResult = await client.initialize();
+    const output = {
+      provider: providerName,
+      connected: true,
+      protocolVersion: initResult.protocolVersion || 1,
+      agentInfo: initResult.agentInfo || {},
+      agentCapabilities: initResult.agentCapabilities || {},
+    };
+    console.log(JSON.stringify(output));
+  } catch (err) {
+    const output = {
+      provider: providerName,
+      connected: false,
+      error: sanitize(err.message),
+    };
+    console.log(JSON.stringify(output));
+    process.exit(1);
+  } finally {
+    await client.close();
+  }
+}
+
 // --- Consultation mode ---
 
 async function runConsult(args) {
@@ -132,8 +171,15 @@ async function runConsult(args) {
 
   const resolvedQuestionPath = resolvePath(args.questionFile);
   const cwd = process.cwd();
-  if (!resolvedQuestionPath.startsWith(cwd + '/') && resolvedQuestionPath !== cwd) {
-    writeError('--question-file must be within the current working directory');
+  const home = homedir();
+  const safePrefixes = [
+    cwd + '/',
+    joinPath(home, '.claude/'),
+    joinPath(home, '.opencode/'),
+    joinPath(home, '.codex/'),
+  ];
+  if (!safePrefixes.some(p => resolvedQuestionPath.startsWith(p))) {
+    writeError('--question-file must be within cwd or a known state directory');
     process.exit(1);
   }
 
@@ -210,6 +256,8 @@ async function main() {
 
   if (args.detect) {
     await runDetect(args.provider);
+  } else if (args.dryRun) {
+    await runDryRun(args.provider);
   } else {
     await runConsult(args);
   }

@@ -337,7 +337,19 @@ node acp/run.js --provider="PROVIDER" --question-file="{AI_STATE_DIR}/consult/qu
 | Copilot | `copilot -p - < "{AI_STATE_DIR}/consult/question.tmp"` |
 | Kiro | ACP only - use ACP command above |
 
-Execute via Bash with a 120-second timeout.
+**Timeout enforcement**: Wrap CLI commands with the `timeout` command to enforce the 120s limit:
+
+```
+timeout 120 env -u CLAUDECODE claude -p - --output-format json ... < question.tmp
+timeout 120 gemini -p - --output-format json ... < question.tmp
+```
+
+If `timeout` is not available (some macOS systems), use a background process with kill:
+```
+COMMAND < question.tmp & PID=$!; ( sleep 120 && kill $PID 2>/dev/null ) & TIMER=$!; wait $PID 2>/dev/null; kill $TIMER 2>/dev/null
+```
+
+For ACP, `acp/run.js --timeout=120000` handles timeouts internally via per-request timers.
 
 ##### Step 3f: Parse result
 

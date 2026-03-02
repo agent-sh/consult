@@ -1,9 +1,8 @@
-#!/usr/bin/env node
 /**
  * ACP Provider Registry
  *
- * Maps provider names to their ACP adapter spawn configurations.
- * Each provider entry defines how to start the ACP agent subprocess.
+ * Loads provider configs from providers.json (bundled defaults) and merges
+ * user overrides from {stateDir}/consult/providers.json if present.
  *
  * @license MIT
  */
@@ -11,82 +10,68 @@
 'use strict';
 
 const { spawn } = require('child_process');
+const { readFileSync, existsSync } = require('fs');
+const { join } = require('path');
+const { homedir } = require('os');
 
 const isWindows = process.platform === 'win32';
 
+// Load bundled defaults
+const BUNDLED_PROVIDERS = require('./providers.json');
+
+// Convert JSON null env values to undefined (JSON can't represent undefined)
+function normalizeEnv(provider) {
+  if (!provider.env) return provider;
+  const env = {};
+  for (const [k, v] of Object.entries(provider.env)) {
+    env[k] = v === null ? undefined : v;
+  }
+  return { ...provider, env };
+}
+
 /**
- * ACP provider configurations.
- *
- * Each entry defines:
- * - command: Binary to spawn
- * - args: Arguments for ACP mode
- * - detect: Command name to check availability (via which/where.exe)
- * - env: Extra env vars (set to undefined to delete from inherited env)
- * - name: Human-readable display name
- * - supportsModel: Whether the ACP agent accepts model selection
- * - supportsContinue: Whether session resume is supported
+ * Load providers: bundled defaults merged with user overrides.
+ * User file locations checked: .claude/consult/providers.json,
+ * .opencode/consult/providers.json, .codex/consult/providers.json,
+ * ~/.claude/consult/providers.json
  */
-const ACP_PROVIDERS = {
-  claude: {
-    command: 'npx',
-    args: ['-y', '@anthropic-ai/claude-code-acp'],
-    detect: 'npx',
-    env: { CLAUDECODE: undefined },
-    name: 'Claude',
-    supportsModel: true,
-    supportsContinue: true,
-  },
-  gemini: {
-    command: 'gemini',
-    args: [],
-    detect: 'gemini',
-    env: {},
-    name: 'Gemini CLI',
-    supportsModel: true,
-    supportsContinue: true,
-  },
-  codex: {
-    command: 'npx',
-    args: ['-y', '@zed-industries/codex-acp'],
-    detect: 'npx',
-    env: {},
-    name: 'Codex',
-    supportsModel: true,
-    supportsContinue: true,
-  },
-  copilot: {
-    command: 'copilot',
-    args: ['--acp', '--stdio'],
-    detect: 'copilot',
-    env: {},
-    name: 'GitHub Copilot',
-    supportsModel: true,
-    supportsContinue: false,
-  },
-  kiro: {
-    command: 'kiro-cli',
-    args: ['acp'],
-    detect: 'kiro-cli',
-    env: {},
-    name: 'Kiro',
-    supportsModel: false,
-    supportsContinue: false,
-  },
-  opencode: {
-    command: 'opencode',
-    args: ['acp'],
-    detect: 'opencode',
-    env: {},
-    name: 'OpenCode',
-    supportsModel: true,
-    supportsContinue: true,
-  },
-};
+function loadProviders() {
+  const providers = {};
+  for (const [name, config] of Object.entries(BUNDLED_PROVIDERS)) {
+    providers[name] = normalizeEnv(config);
+  }
+
+  const searchPaths = [
+    join(process.cwd(), '.claude', 'consult', 'providers.json'),
+    join(process.cwd(), '.opencode', 'consult', 'providers.json'),
+    join(process.cwd(), '.codex', 'consult', 'providers.json'),
+    join(homedir(), '.claude', 'consult', 'providers.json'),
+  ];
+
+  for (const userFile of searchPaths) {
+    if (existsSync(userFile)) {
+      try {
+        const userProviders = JSON.parse(readFileSync(userFile, 'utf8'));
+        for (const [name, config] of Object.entries(userProviders)) {
+          if (name === '__proto__' || name === 'constructor' || name === 'prototype') continue;
+          providers[name] = normalizeEnv({ ...providers[name], ...config });
+        }
+      } catch {
+        // Ignore malformed user config
+      }
+      break; // Use first found
+    }
+  }
+
+  return providers;
+}
+
+// Loaded once at module init
+const ACP_PROVIDERS = loadProviders();
 
 /**
  * Check if a command is available on PATH.
- *
- * @param {string} command - Command name to check
+ * @param {string} command
  * @returns {Promise<boolean>}
  */
 function isCommandAvailable(command) {
@@ -118,8 +103,7 @@ function isCommandAvailable(command) {
 
 /**
  * Detect ACP support for a given provider.
- *
- * @param {string} providerName - Key from ACP_PROVIDERS
+ * @param {string} providerName
  * @returns {Promise<{available: boolean, provider: Object|null, reason: string}>}
  */
 async function detectAcpSupport(providerName) {
@@ -130,11 +114,7 @@ async function detectAcpSupport(providerName) {
 
   const available = await isCommandAvailable(provider.detect);
   if (!available) {
-    return {
-      available: false,
-      provider,
-      reason: `${provider.detect} not found on PATH`,
-    };
+    return { available: false, provider, reason: `${provider.detect} not found on PATH` };
   }
 
   return { available: true, provider, reason: 'ok' };
@@ -142,8 +122,7 @@ async function detectAcpSupport(providerName) {
 
 /**
  * Detect ACP support for all providers in parallel.
- *
- * @returns {Promise<Object>} Map of providerName -> { available, provider, reason }
+ * @returns {Promise<Object>}
  */
 async function detectAllAcpSupport() {
   const names = Object.keys(ACP_PROVIDERS);
@@ -155,6 +134,7 @@ async function detectAllAcpSupport() {
 
 module.exports = {
   ACP_PROVIDERS,
+  loadProviders,
   detectAcpSupport,
   detectAllAcpSupport,
   isCommandAvailable,

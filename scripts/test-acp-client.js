@@ -242,7 +242,7 @@ async function runAsyncTests() {
   // Test: question file outside cwd (absolute path)
   await testRunJs(
     ['--provider=gemini', '--question-file=/tmp/outside-cwd-test.tmp', '--timeout=5000'],
-    1, '--question-file must be within the current working directory',
+    1, '--question-file must be within cwd or a known state directory',
     'run.js should reject question file outside cwd'
   );
 }

@@ -163,9 +163,15 @@ class AcpClient extends EventEmitter {
     return this.#sessionId;
   }
 
-  /** Gracefully shut down the subprocess. */
+  /** Gracefully shut down the subprocess. Drains in-flight requests first. */
   async close() {
     if (!this.#proc || this.#closed) return;
+
+    // Drain: cancel in-flight prompt and wait up to 2s for pending responses
+    if (this.#sessionId && this.#pending.size > 0) {
+      this.cancel();
+      await new Promise(r => setTimeout(r, 2000));
+    }
 
     this.#proc.kill('SIGTERM');
 

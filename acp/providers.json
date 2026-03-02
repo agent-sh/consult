@@ -1,0 +1,56 @@
+{
+  "claude": {
+    "command": "npx",
+    "args": ["-y", "@anthropic-ai/claude-code-acp"],
+    "detect": "npx",
+    "env": { "CLAUDECODE": null },
+    "name": "Claude",
+    "supportsModel": true,
+    "supportsContinue": true
+  },
+  "gemini": {
+    "command": "gemini",
+    "args": [],
+    "detect": "gemini",
+    "env": {},
+    "name": "Gemini CLI",
+    "supportsModel": true,
+    "supportsContinue": true
+  },
+  "codex": {
+    "command": "npx",
+    "args": ["-y", "@zed-industries/codex-acp"],
+    "detect": "npx",
+    "env": {},
+    "name": "Codex",
+    "supportsModel": true,
+    "supportsContinue": true
+  },
+  "copilot": {
+    "command": "copilot",
+    "args": ["--acp", "--stdio"],
+    "detect": "copilot",
+    "env": {},
+    "name": "GitHub Copilot",
+    "supportsModel": true,
+    "supportsContinue": false
+  },
+  "kiro": {
+    "command": "kiro-cli",
+    "args": ["acp"],
+    "detect": "kiro-cli",
+    "env": {},
+    "name": "Kiro",
+    "supportsModel": false,
+    "supportsContinue": false
+  },
+  "opencode": {
+    "command": "opencode",
+    "args": ["acp"],
+    "detect": "opencode",
+    "env": {},
+    "name": "OpenCode",
+    "supportsModel": true,
+    "supportsContinue": true
+  }
+}
