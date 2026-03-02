@@ -354,6 +354,127 @@ assertNotContains(
 
 assertNotContains(skill, /Command: claude -p "QUESTION"/, 'SKILL.md must not include Claude command templates without env -u CLAUDECODE.', failures);
 
+// --- ACP Transport assertions ---
+
+assertContains(
+  skill,
+  /## ACP Transport/,
+  'SKILL.md must contain ACP Transport section.',
+  failures
+);
+
+assertContains(
+  skill,
+  /\| Claude \| `npx -y @anthropic-ai\/claude-code-acp`/,
+  'SKILL.md must include Claude ACP adapter in provider table.',
+  failures
+);
+
+assertContains(
+  skill,
+  /\| Gemini \| `gemini` \(native ACP\)/,
+  'SKILL.md must include Gemini native ACP in provider table.',
+  failures
+);
+
+assertContains(
+  skill,
+  /\| Codex \| `npx -y @zed-industries\/codex-acp`/,
+  'SKILL.md must include Codex ACP adapter in provider table.',
+  failures
+);
+
+assertContains(
+  skill,
+  /\| Copilot \| `copilot --acp --stdio`/,
+  'SKILL.md must include Copilot ACP adapter in provider table.',
+  failures
+);
+
+assertContains(
+  skill,
+  /\| Kiro \| `kiro-cli acp`/,
+  'SKILL.md must include Kiro ACP adapter in provider table.',
+  failures
+);
+
+assertContains(
+  skill,
+  /\| OpenCode \| `opencode acp`/,
+  'SKILL.md must include OpenCode ACP adapter in provider table.',
+  failures
+);
+
+assertContains(
+  skill,
+  /node acp\/run\.js --provider="PROVIDER" --question-file="\{AI_STATE_DIR\}\/consult\/question\.tmp"/,
+  'SKILL.md ACP command template must use safe question-file passing.',
+  failures
+);
+
+assertContains(
+  skill,
+  /If ACP available: use ACP transport/,
+  'SKILL.md must document ACP transport preference.',
+  failures
+);
+
+assertContains(
+  skill,
+  /If ACP unavailable: fall back to CLI transport/,
+  'SKILL.md must document CLI fallback.',
+  failures
+);
+
+assertContains(
+  skill,
+  /"transport": "acp"/,
+  'SKILL.md session schema must include transport field.',
+  failures
+);
+
+assertContains(
+  command,
+  /Bash\(node:\*\)/,
+  'commands/consult.md must allow Bash(node:*) for ACP runner.',
+  failures
+);
+
+assertContains(
+  command,
+  /gemini, codex, claude, opencode, copilot, kiro/,
+  'commands/consult.md must include kiro in tool allow-list.',
+  failures
+);
+
+assertContains(
+  command,
+  /node acp\/run\.js --detect --provider=/,
+  'commands/consult.md must include ACP detection commands.',
+  failures
+);
+
+assertContains(
+  agent,
+  /Bash\(node:\*\)/,
+  'agents/consult-agent.md must allow Bash(node:*) for ACP runner.',
+  failures
+);
+
+assertContains(
+  agent,
+  /Bash\(kiro-cli:\*\)/,
+  'agents/consult-agent.md must allow Bash(kiro-cli:*) for Kiro.',
+  failures
+);
+
+assertContains(
+  skill,
+  /Kiro is ACP-only/,
+  'SKILL.md must note Kiro as ACP-only provider.',
+  failures
+);
+
 if (failures.length > 0) {
   console.error('[ERROR] command template validation failed:');
   for (const failure of failures) {
