@@ -257,19 +257,6 @@ IMPORTANT: Do NOT skip model selection. Do NOT silently use a default model. If 
 
 With all parameters resolved (tool, effort, model, question, count, and optionally context/continue):
 
-#### Single instance (count=1, the default)
-
-Invoke the `consult` skill directly using the Skill tool:
-
-```
-Skill: consult
-Args: "[question]" --tool=[tool] --effort=[effort] --model=[model] [--context=[context]] [--continue=[session_id]]
-
-Example: "Is this the right approach?" --tool=gemini --effort=high --model=gemini-3.1-pro-preview
-```
-
-The skill handles the full consultation lifecycle: model resolution, command building, context packaging, execution with 120s timeout, and returns a plain JSON result.
-
 #### Multi-instance (count > 1)
 
 Spawn the `consult:consult-agent` via the Task tool with all resolved parameters:
@@ -290,13 +277,86 @@ Task:
     Return all responses formatted with numbered headers and a brief synthesis.
 ```
 
-The agent handles parallel execution, temp file management, result parsing, and synthesis.
+Then skip to Phase 4 (multi-instance).
+
+#### Single instance (count=1, the default)
+
+Execute the consultation directly. Do NOT call `Skill: consult` - that would recursively load this command file.
+
+##### Step 3a: Resolve model from effort (if not explicit)
+
+If `--model` was provided, use it directly. Otherwise map effort to model:
+
+| Effort | Claude | Gemini | Codex | OpenCode | Copilot | Kiro |
+|--------|--------|--------|-------|----------|---------|------|
+| low | claude-haiku-4-5 (1 turn) | gemini-3-flash-preview | gpt-5.3-codex (low) | default (low) | no control | n/a |
+| medium | claude-sonnet-4-6 (3 turns) | gemini-3-flash-preview | gpt-5.3-codex (medium) | default (medium) | no control | n/a |
+| high | claude-opus-4-6 (5 turns) | gemini-3.1-pro-preview | gpt-5.3-codex (high) | default (high) | no control | n/a |
+| max | claude-opus-4-6 (10 turns) | gemini-3.1-pro-preview | gpt-5.3-codex (high) | default + --thinking | no control | n/a |
+
+**Claude model ID resolution**: If the CLI returns "invalid model identifier", retry with Bedrock format: replace `claude-opus-4-6` with `us.anthropic.claude-opus-4-6-v1`, `claude-sonnet-4-6` with `us.anthropic.claude-sonnet-4-6-v1`, `claude-haiku-4-5` with `us.anthropic.claude-haiku-4-5-20251001-v1:0`.
+
+##### Step 3b: Context packaging
+
+If `--context=diff`: run `git diff 2>/dev/null` and prepend output to the question.
+If `--context=file=PATH`: read the file using the Read tool and prepend its content to the question.
+
+##### Step 3c: Write question to temp file
+
+Write the full question text (with any prepended context) to `{AI_STATE_DIR}/consult/question.tmp` using the Write tool. Create the `consult/` directory if needed.
+
+Platform state directory: `.claude/` (Claude Code), `.opencode/` (OpenCode), `.codex/` (Codex).
+
+##### Step 3d: Codex trust gate (Codex only)
+
+If tool is codex, resolve `{SKIP_GIT_FLAG}`:
+1. Run `git rev-parse --is-inside-work-tree`
+2. If true: `SKIP_GIT_FLAG` = empty string
+3. If false: `SKIP_GIT_FLAG` = `--skip-git-repo-check`
+
+##### Step 3e: Build and execute CLI command
+
+**For ACP providers** (preferred when ACP was detected in Step 2b-acp):
+
+```
+node acp/run.js --provider="PROVIDER" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=120000 [--model="MODEL"] [--effort="EFFORT"] [--max-turns=TURNS]
+```
+
+**For CLI providers** (fallback when ACP unavailable):
+
+| Provider | Safe Command Pattern |
+|----------|---------------------|
+| Claude | `env -u CLAUDECODE claude -p - --output-format json --model "MODEL" --max-turns TURNS --allowedTools "Read,Glob,Grep" < "{AI_STATE_DIR}/consult/question.tmp"` |
+| Claude (resume) | `env -u CLAUDECODE claude -p - --output-format json --model "MODEL" --max-turns TURNS --allowedTools "Read,Glob,Grep" --resume "SESSION_ID" < "{AI_STATE_DIR}/consult/question.tmp"` |
+| Gemini | `gemini -p - --output-format json -m "MODEL" < "{AI_STATE_DIR}/consult/question.tmp"` |
+| Gemini (resume) | `gemini -p - --output-format json -m "MODEL" --resume "SESSION_ID" < "{AI_STATE_DIR}/consult/question.tmp"` |
+| Codex | `codex exec "$(cat "{AI_STATE_DIR}/consult/question.tmp")" --json -m "MODEL" {SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"` |
+| Codex (resume) | `codex exec resume "SESSION_ID" "$(cat "{AI_STATE_DIR}/consult/question.tmp")" --json -m "MODEL" {SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"` |
+| OpenCode | `opencode run - --format json --model "MODEL" --variant "VARIANT" < "{AI_STATE_DIR}/consult/question.tmp"` |
+| OpenCode (resume) | `opencode run - --format json --model "MODEL" --variant "VARIANT" --session "SESSION_ID" < "{AI_STATE_DIR}/consult/question.tmp"` |
+| Copilot | `copilot -p - < "{AI_STATE_DIR}/consult/question.tmp"` |
+| Kiro | ACP only - use ACP command above |
+
+Execute via Bash with a 120-second timeout.
+
+##### Step 3f: Parse result
+
+| Provider | Parse Expression |
+|----------|-----------------|
+| Claude | `JSON.parse(stdout).result` |
+| Gemini | `JSON.parse(stdout).response` |
+| Codex | `JSON.parse(stdout).message` or raw text |
+| OpenCode | Parse JSON events, extract final text block |
+| Copilot | Raw stdout text |
+| ACP (any) | `JSON.parse(stdout).response` |
+
+Extract: response text, session_id (if available), duration_ms.
 
 ### Phase 4: Present Results
 
 #### Single instance
 
-Parse the skill's plain JSON output and display:
+Display:
 
 ```
 Tool: {tool}, Model: {model}, Effort: {effort}, Duration: {duration_ms}ms.

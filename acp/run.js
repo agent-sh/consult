@@ -76,6 +76,8 @@ function parseArgs(argv) {
       args.sessionId = arg.slice('--session-id='.length);
     } else if (arg.startsWith('--effort=')) {
       args.effort = arg.slice('--effort='.length);
+    } else if (arg.startsWith('--max-turns=')) {
+      args.maxTurns = parseInt(arg.slice('--max-turns='.length), 10);
     }
   }
   return args;
