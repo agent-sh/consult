@@ -31,30 +31,40 @@ function normalizeEnv(provider) {
 
 /**
  * Load providers: bundled defaults merged with user overrides.
- * User file locations checked: .claude/consult/providers.json,
- * .opencode/consult/providers.json, .codex/consult/providers.json,
- * ~/.claude/consult/providers.json
+ *
+ * SECURITY: Only loads overrides from user home directory (~/.claude/consult/providers.json).
+ * Repo-scoped overrides (.claude/consult/providers.json in cwd) are NOT loaded
+ * because a malicious repo could redirect consultations to attacker-controlled endpoints.
+ *
+ * @param {Object} [options]
+ * @param {boolean} [options.reportSources=false] If true, track which source contributed each provider
+ * @returns {Object} providers map (or {providers, sources} if reportSources)
  */
-function loadProviders() {
+function loadProviders(options) {
+  const reportSources = options && options.reportSources;
   const providers = {};
+  const sources = {};
+
   for (const [name, config] of Object.entries(BUNDLED_PROVIDERS)) {
     providers[name] = normalizeEnv(config);
+    if (reportSources) sources[name] = 'bundled (acp/providers.json)';
   }
 
-  const searchPaths = [
-    join(process.cwd(), '.claude', 'consult', 'providers.json'),
-    join(process.cwd(), '.opencode', 'consult', 'providers.json'),
-    join(process.cwd(), '.codex', 'consult', 'providers.json'),
+  // Only trust home-dir overrides (not repo-scoped - supply chain risk)
+  const trustedPaths = [
     join(homedir(), '.claude', 'consult', 'providers.json'),
+    join(homedir(), '.opencode', 'consult', 'providers.json'),
+    join(homedir(), '.codex', 'consult', 'providers.json'),
   ];
 
-  for (const userFile of searchPaths) {
+  for (const userFile of trustedPaths) {
     if (existsSync(userFile)) {
       try {
         const userProviders = JSON.parse(readFileSync(userFile, 'utf8'));
         for (const [name, config] of Object.entries(userProviders)) {
           if (name === '__proto__' || name === 'constructor' || name === 'prototype') continue;
           providers[name] = normalizeEnv({ ...providers[name], ...config });
+          if (reportSources) sources[name] = userFile;
         }
       } catch {
         // Ignore malformed user config
@@ -63,6 +73,7 @@ function loadProviders() {
     }
   }
 
+  if (reportSources) return { providers, sources };
   return providers;
 }
 

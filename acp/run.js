@@ -17,11 +17,11 @@
 
 'use strict';
 
-const { readFileSync } = require('fs');
+const { readFileSync, unlinkSync } = require('fs');
 const { resolve: resolvePath, join: joinPath } = require('path');
 const { homedir } = require('os');
 const { AcpClient } = require('./client');
-const { ACP_PROVIDERS, detectAcpSupport } = require('./providers');
+const { ACP_PROVIDERS, detectAcpSupport, loadProviders } = require('./providers');
 
 // --- Output sanitization patterns ---
 
@@ -42,14 +42,49 @@ const REDACTION_PATTERNS = [
   [/Bearer [a-zA-Z0-9_-]{20,}/g, 'Bearer [REDACTED]'],
 ];
 
+/**
+ * Detect high-entropy strings that may be secrets missed by pattern matching.
+ * Checks for base64-like or hex strings >= 32 chars with Shannon entropy > 4.0.
+ */
+function hasHighEntropy(token) {
+  if (token.length < 32) return false;
+  const freq = {};
+  for (const ch of token) freq[ch] = (freq[ch] || 0) + 1;
+  let entropy = 0;
+  const len = token.length;
+  for (const count of Object.values(freq)) {
+    const p = count / len;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy > 4.0;
+}
+
+const HIGH_ENTROPY_PATTERN = /(?<![a-zA-Z0-9_/.-])[A-Za-z0-9+/=_-]{32,}(?![a-zA-Z0-9_/.-])/g;
+
 function sanitize(text) {
   let result = text;
   let redacted = false;
+
+  // Phase 1: known patterns (blocklist)
   for (const [pattern, replacement] of REDACTION_PATTERNS) {
     const before = result;
     result = result.replace(pattern, replacement);
     if (result !== before) redacted = true;
   }
+
+  // Phase 2: entropy-based fallback for unknown secret formats
+  result = result.replace(HIGH_ENTROPY_PATTERN, (match) => {
+    // Skip known safe patterns: file paths, URLs, model IDs, common base64 content
+    if (match.includes('/') && match.includes('.')) return match; // likely a path
+    if (match.startsWith('eyJ')) return match; // JWT header (intentional content, not a secret)
+    if (/^[0-9a-f]+$/i.test(match) && match.length === 40) return match; // git SHA
+    if (hasHighEntropy(match)) {
+      redacted = true;
+      return '[REDACTED_HIGH_ENTROPY]';
+    }
+    return match;
+  });
+
   if (redacted) {
     result += '\n[WARN] Sensitive tokens were redacted from the response.';
   }
@@ -61,12 +96,14 @@ function sanitize(text) {
 const SESSION_ID_PATTERN = /^(?!-)[A-Za-z0-9._:-]+$/;
 
 function parseArgs(argv) {
-  const args = { detect: false, dryRun: false };
+  const args = { detect: false, dryRun: false, showConfig: false };
   for (const arg of argv.slice(2)) {
     if (arg === '--detect') {
       args.detect = true;
     } else if (arg === '--dry-run') {
       args.dryRun = true;
+    } else if (arg === '--show-resolved-config') {
+      args.showConfig = true;
     } else if (arg.startsWith('--provider=')) {
       args.provider = arg.slice('--provider='.length);
     } else if (arg.startsWith('--question-file=')) {
@@ -88,12 +125,13 @@ function parseArgs(argv) {
 
 function validateArgs(args) {
   const errors = [];
+  if (args.showConfig) return errors; // no validation needed for config display
   if (!args.provider) {
     errors.push('--provider is required');
   } else if (!ACP_PROVIDERS[args.provider]) {
     errors.push(`Unknown provider: ${args.provider}. Valid: ${Object.keys(ACP_PROVIDERS).join(', ')}`);
   }
-  if (!args.detect && !args.dryRun) {
+  if (!args.detect && !args.dryRun && !args.showConfig) {
     if (!args.questionFile) {
       errors.push('--question-file is required');
     }
@@ -124,6 +162,24 @@ async function runDetect(providerName) {
   }
   console.log(JSON.stringify(output));
   process.exit(result.available ? 0 : 1);
+}
+
+// --- Show resolved config mode ---
+
+function runShowConfig() {
+  const { providers, sources } = loadProviders({ reportSources: true });
+  const output = { providers: {}, sources };
+  for (const [name, config] of Object.entries(providers)) {
+    output.providers[name] = {
+      command: config.command,
+      args: config.args,
+      detect: config.detect,
+      name: config.name,
+      supportsModel: config.supportsModel,
+      supportsContinue: config.supportsContinue,
+    };
+  }
+  console.log(JSON.stringify(output, null, 2));
 }
 
 // --- Dry-run mode ---
@@ -213,6 +269,12 @@ async function runConsult(args) {
     const durationMs = Date.now() - startTime;
     const responseText = sanitize(result.text || '');
 
+    // Validate response - provider returned something meaningful
+    if (!responseText.trim()) {
+      writeError(`Provider ${args.provider} returned an empty response (stopReason: ${result.stopReason})`, durationMs);
+      process.exit(1);
+    }
+
     const output = {
       tool: args.provider,
       model: args.model || args.provider,
@@ -227,11 +289,30 @@ async function runConsult(args) {
     console.log(JSON.stringify(output));
   } catch (err) {
     const durationMs = Date.now() - startTime;
-    writeError(err.message, durationMs);
+    const msg = err.message || '';
+
+    // Surface actionable error messages for common failures
+    if (msg.includes('Failed to spawn')) {
+      writeError(`Provider "${args.provider}" not installed. Install ${provider.command} or check PATH.`, durationMs);
+    } else if (msg.includes('timed out')) {
+      writeError(`Provider "${args.provider}" timed out after ${timeout}ms. Try --effort=low or increase --timeout.`, durationMs);
+    } else if (msg.includes('API') && (msg.includes('key') || msg.includes('401') || msg.includes('403'))) {
+      writeError(`Provider "${args.provider}" authentication failed. Check your API key / credentials.`, durationMs);
+    } else if (msg.includes('invalid model')) {
+      writeError(`Invalid model for "${args.provider}": ${args.model || 'default'}. Check --model value.`, durationMs);
+    } else {
+      writeError(msg, durationMs);
+    }
     process.exit(1);
   } finally {
+    cleanupTempFile(resolvedQuestionPath);
     await client.close();
   }
+}
+
+function cleanupTempFile(filePath) {
+  if (!filePath) return;
+  try { unlinkSync(filePath); } catch { /* already gone */ }
 }
 
 function writeError(message, durationMs) {
@@ -254,7 +335,9 @@ async function main() {
     process.exit(1);
   }
 
-  if (args.detect) {
+  if (args.showConfig) {
+    runShowConfig();
+  } else if (args.detect) {
     await runDetect(args.provider);
   } else if (args.dryRun) {
     await runDryRun(args.provider);
