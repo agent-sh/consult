@@ -13,8 +13,10 @@
     "url": "https://github.com/agent-sh/consult.git"
   },
   "scripts": {
-    "test": "node scripts/test-command-templates.js",
-    "validate": "node scripts/test-command-templates.js"
+    "test": "node scripts/test-command-templates.js && node scripts/test-acp-client.js",
+    "test:templates": "node scripts/test-command-templates.js",
+    "test:acp": "node scripts/test-acp-client.js",
+    "validate": "node scripts/test-command-templates.js && node scripts/test-acp-client.js"
   },
   "homepage": "https://github.com/agent-sh/consult",
   "keywords": [

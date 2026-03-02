@@ -52,6 +52,7 @@ Models: claude-haiku-4-5, claude-sonnet-4-6, claude-opus-4-6
 **Parse output**: `JSON.parse(stdout).result`
 **Session ID**: `JSON.parse(stdout).session_id`
 **Continuable**: Yes
+**ACP adapter**: `npx -y @anthropic-ai/claude-code-acp` (see ACP Transport section)
 
 ### Gemini
 
@@ -72,6 +73,7 @@ Models: gemini-2.5-flash, gemini-2.5-pro, gemini-3-flash-preview, gemini-3-pro-p
 **Parse output**: `JSON.parse(stdout).response`
 **Session ID**: `JSON.parse(stdout).session_id`
 **Continuable**: Yes (via `--resume`)
+**ACP adapter**: `gemini` (native ACP - Gemini CLI is ACP-compatible)
 
 ### Codex
 
@@ -98,6 +100,7 @@ Models: gpt-5.3-codex
 **Parse output**: `JSON.parse(stdout).message` or raw text
 **Session ID**: Codex prints a resume hint at session end (e.g., `codex resume SESSION_ID`). Extract the session ID from stdout or from `JSON.parse(stdout).session_id` if available.
 **Continuable**: Yes. Sessions are stored as JSONL rollout files at `~/.codex/sessions/`. Non-interactive resume uses `codex exec resume "SESSION_ID" "follow-up prompt" --json -m "MODEL" {SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"`. Use `--last` instead of a session ID to resume the most recent session.
+**ACP adapter**: `npx -y @zed-industries/codex-acp` (see ACP Transport section)
 
 ### OpenCode
 
@@ -119,6 +122,7 @@ Models: 75+ via providers (format: provider/model). Top picks: claude-sonnet-4-6
 **Parse output**: Parse JSON events from stdout, extract final text response
 **Session ID**: Extract from JSON output if available, or use `--continue` to auto-resume the most recent session.
 **Continuable**: Yes (via `--continue` or `--session`). Sessions are stored in a SQLite database in the OpenCode data directory. Use `--session SESSION_ID` for a specific session, or `--continue` for the most recent.
+**ACP adapter**: `opencode acp` (see ACP Transport section)
 
 ### Copilot
 
@@ -134,12 +138,26 @@ Models: claude-sonnet-4-6 (default), claude-opus-4-6, claude-haiku-4-5, gpt-5
 
 **Parse output**: Raw text from stdout
 **Continuable**: No
+**ACP adapter**: `copilot --acp --stdio` (see ACP Transport section)
+
+### Kiro
+
+```
+ACP-only provider. No CLI mode for external consultation.
+Command: node acp/run.js --provider="kiro" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=120000
+```
+
+Kiro is available only via ACP transport. It requires `kiro-cli` on PATH.
+
+**Parse output**: Via ACP runner (`JSON.parse(stdout)`)
+**Continuable**: No
+**ACP adapter**: `kiro-cli acp` (native ACP)
 
 ## Input Validation
 
 Before building commands, validate all user-provided arguments:
 
-- **--tool**: MUST be one of: gemini, codex, claude, opencode, copilot. Reject all other values.
+- **--tool**: MUST be one of: gemini, codex, claude, opencode, copilot, kiro. Reject all other values.
 - **--effort**: MUST be one of: low, medium, high, max. Default to medium.
 - **--model**: Allow any string, but quote it in the command.
 - **--continue=SESSION_ID**: If provided, SESSION_ID MUST match `^(?!-)[A-Za-z0-9._:-]+$`. Reject values that contain spaces, leading dashes, or shell metacharacters.
@@ -225,7 +243,72 @@ Cross-platform tool detection:
 - **Windows**: `where.exe TOOL 2>nul` -- returns 0 if found
 - **Unix**: `which TOOL 2>/dev/null` -- returns 0 if found
 
-Check each tool (claude, gemini, codex, opencode, copilot) and return only the available ones.
+Check each tool (claude, gemini, codex, opencode, copilot, kiro) and return only the available ones.
+
+## ACP Transport
+
+ACP (Agent Client Protocol) is an alternative transport to CLI subprocess invocation. When available, ACP provides structured JSON-RPC 2.0 communication, session persistence, and streaming responses via a universal protocol supported by all major AI coding tools.
+
+### ACP Provider Adapters
+
+| Provider | ACP Command | Type | Detection |
+|----------|-------------|------|-----------|
+| Claude | `npx -y @anthropic-ai/claude-code-acp` | adapter | npx available |
+| Gemini | `gemini` (native ACP) | native | gemini available |
+| Codex | `npx -y @zed-industries/codex-acp` | adapter | npx available |
+| Copilot | `copilot --acp --stdio` | native | copilot available |
+| Kiro | `kiro-cli acp` | native | kiro-cli available |
+| OpenCode | `opencode acp` | native | opencode available |
+
+### Transport Selection
+
+1. Check ACP availability for the target provider (see ACP Detection below)
+2. If ACP available: use ACP transport (preferred - standardized protocol, session persistence)
+3. If ACP unavailable: fall back to CLI transport (existing behavior above)
+
+The output envelope is identical regardless of transport. Downstream consumers (session management, debate orchestrator, output parsing) are transport-agnostic.
+
+### ACP Command Template
+
+All ACP providers use the same command pattern via the ACP runner script:
+
+```
+node acp/run.js --provider="PROVIDER" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=TIMEOUT_MS [--model="MODEL"] [--session-id="SESSION_ID"]
+```
+
+| Provider | ACP Safe Command Pattern |
+|----------|------------------------|
+| Claude | `node acp/run.js --provider="claude" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=120000 --model="MODEL"` |
+| Gemini | `node acp/run.js --provider="gemini" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=120000 --model="MODEL"` |
+| Codex | `node acp/run.js --provider="codex" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=120000 --model="MODEL"` |
+| OpenCode | `node acp/run.js --provider="opencode" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=120000 --model="MODEL"` |
+| Copilot | `node acp/run.js --provider="copilot" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=120000` |
+| Kiro | `node acp/run.js --provider="kiro" --question-file="{AI_STATE_DIR}/consult/question.tmp" --timeout=120000` |
+
+**Parse output**: Same as CLI transport - `JSON.parse(stdout)`. The ACP runner outputs the same envelope format.
+**Session ID**: From `JSON.parse(stdout).session_id` (ACP session ID)
+**Resume**: Pass `--session-id="SESSION_ID"` flag on the ACP command
+**Continuable**: Claude, Gemini, Codex, OpenCode (yes). Copilot, Kiro (no).
+
+### ACP Detection
+
+Run ACP detection alongside CLI detection. For each provider:
+
+```bash
+node acp/run.js --detect --provider="PROVIDER"
+```
+
+Returns on success (exit 0):
+```json
+{"provider": "claude", "acp_available": true, "name": "Claude"}
+```
+
+Returns on failure (exit 1):
+```json
+{"provider": "claude", "acp_available": false, "name": "Claude", "reason": "npx not found on PATH"}
+```
+
+**Kiro note**: Kiro is ACP-only - it has no CLI mode for external consultation. It only appears as available when `kiro-cli` is on PATH and ACP detection succeeds.
 
 ## Session Management
 
@@ -241,9 +324,12 @@ After successful consultation, save to `{AI_STATE_DIR}/consult/last-session.json
   "session_id": "abc-123-def-456",
   "timestamp": "2026-02-10T12:00:00Z",
   "question": "original question text",
-  "continuable": true
+  "continuable": true,
+  "transport": "acp"
 }
 ```
+
+The `transport` field is `"acp"` or `"cli"`. When resuming a session with `--continue`, use the same transport that created it. If the field is absent, assume `"cli"` (backward compatible).
 
 `AI_STATE_DIR` uses the platform state directory:
 - Claude Code: `.claude/`
@@ -258,7 +344,7 @@ For `--continue`, read the session file and restore:
 - model (reuse same model)
 
 Before using restored values, re-validate them:
-- tool must still be in allow-list: gemini, codex, claude, opencode, copilot
+- tool must still be in allow-list: gemini, codex, claude, opencode, copilot, kiro
 - session_id must match `^(?!-)[A-Za-z0-9._:-]+$`
 - model must match `^[A-Za-z0-9._:/-]+$` (reject spaces and shell metacharacters)
 - if either check fails, reject with `[ERROR] Invalid restored session data` and do not build a command
