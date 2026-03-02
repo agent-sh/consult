@@ -217,18 +217,18 @@ AskUserQuestion:
         - label: "gpt-5.3-codex-spark"   description: "Cost-effective, 4x more usage"
 ```
 
-**For OpenCode:**
+**For OpenCode (model format: `provider/model`, run `opencode models` to list all):**
 ```
 AskUserQuestion:
   questions:
     - header: "Model"
-      question: "Which model? (type via Other for paid: anthropic/claude-opus-4-6, openai/gpt-5.3-codex)"
+      question: "Which model? (format: provider/model, type via Other for any)"
       multiSelect: false
       options:
-        - label: "opencode/big-pickle"             description: "Free - Zen stealth model, 200K context"
-        - label: "opencode/minimax-m2.1-free"      description: "Free - 230B MoE, strong multilingual coding"
-        - label: "opencode/kimi-k2.5-free"         description: "Free - 1T multimodal, strong coding and agentic"
-        - label: "opencode/trinity-large-preview"  description: "Free - 400B sparse MoE by Arcee AI, 512K context"
+        - label: "opencode/big-pickle"                     description: "Free - stealth model, 200K context"
+        - label: "github-copilot/gemini-3.1-pro-preview"   description: "Copilot - Google Gemini 3.1 Pro"
+        - label: "opencode/minimax-m2.5-free"              description: "Free - 230B MoE, multilingual coding"
+        - label: "github-copilot/claude-opus-4.6"          description: "Copilot - Claude Opus 4.6"
 ```
 
 **For Copilot:**
@@ -358,7 +358,7 @@ For ACP, `acp/run.js --timeout=120000` handles timeouts internally via per-reque
 | Claude | `JSON.parse(stdout).result` |
 | Gemini | `JSON.parse(stdout).response` |
 | Codex | `JSON.parse(stdout).message` or raw text |
-| OpenCode | Parse JSON events, extract final text block |
+| OpenCode | Newline-delimited JSON events. Concatenate `part.text` from events where `type === "text"`. Session ID from `event.sessionID`. |
 | Copilot | Raw stdout text |
 | ACP (any) | `JSON.parse(stdout).response` |
 

@@ -110,7 +110,9 @@ Session resume: opencode run "QUESTION" --format json --model "MODEL" --variant 
 With thinking: add --thinking flag
 ```
 
-Models: 75+ via providers (format: provider/model). Top picks: claude-sonnet-4-6, claude-opus-4-6, gpt-5.3-codex, gemini-3.1-pro-preview, minimax-m2.1
+Models: 75+ via providers (format: `provider/model`). Key providers: `opencode/` (free), `github-copilot/`, `amazon-bedrock/`, `google/`. Examples: `github-copilot/gemini-3.1-pro-preview`, `opencode/big-pickle`, `amazon-bedrock/anthropic.claude-opus-4-6-v1`. Run `opencode models` to list all.
+
+Free models: `opencode/big-pickle`, `opencode/gpt-5-nano`, `opencode/minimax-m2.5-free`, `opencode/trinity-large-preview-free`
 
 | Effort | Model | Variant |
 |--------|-------|---------|
@@ -119,8 +121,9 @@ Models: 75+ via providers (format: provider/model). Top picks: claude-sonnet-4-6
 | high | (user-selected or default) | high |
 | max | (user-selected or default) | high + --thinking |
 
-**Parse output**: Parse JSON events from stdout, extract final text response
-**Session ID**: Extract from JSON output if available, or use `--continue` to auto-resume the most recent session.
+**Parse output**: OpenCode outputs newline-delimited JSON events. Each line is a JSON object with a `type` field. Extract the response text from events where `type === "text"` - the text is in `part.text` (NOT `part.content`). Concatenate all `part.text` values from `type: "text"` events. Event types: `step_start`, `tool_use`, `text`, `step_finish`. The `sessionID` is in every event's top-level `sessionID` field.
+
+**Session ID**: Available in every event as `event.sessionID` (e.g., `ses_xxxxx`). Use `--session SESSION_ID` to resume.
 **Continuable**: Yes (via `--continue` or `--session`). Sessions are stored in a SQLite database in the OpenCode data directory. Use `--session SESSION_ID` for a specific session, or `--continue` for the most recent.
 **ACP adapter**: `opencode acp` (see ACP Transport section)
 
