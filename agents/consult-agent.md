@@ -100,7 +100,7 @@ The results of the consultation are:
 {response}
 ```
 
-Set `continuable: true` for Claude, Gemini, Codex, and OpenCode (tools with session resume support). Only Copilot is non-continuable. Each tool uses a different resume mechanism: Claude/Gemini use `--resume`, Codex uses `codex exec resume`, OpenCode uses `--session`/`--continue`.
+Set `continuable: true` for Claude, Gemini, Codex, and OpenCode (tools with session resume support). Copilot and Kiro are non-continuable. Each tool uses a different resume mechanism: Claude/Gemini use `--resume`, Codex uses `codex exec resume`, OpenCode uses `--session`/`--continue`.
 
 #### 3d. Save Session State
 

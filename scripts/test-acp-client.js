@@ -95,26 +95,7 @@ assert(ACP_PROVIDERS.kiro.supportsModel === false, 'Kiro should not support mode
 assert(ACP_PROVIDERS.copilot.supportsContinue === false, 'Copilot should not support continue');
 assert(ACP_PROVIDERS.kiro.supportsContinue === false, 'Kiro should not support continue');
 
-// --- Test 4: detectAcpSupport with unknown provider ---
-
-(async () => {
-  const result = await detectAcpSupport('nonexistent');
-  assert(result.available === false, 'Unknown provider should not be available');
-  assert(result.provider === null, 'Unknown provider should return null provider');
-  assert(result.reason.includes('Unknown provider'), 'Should explain unknown provider');
-})();
-
-// --- Test 5: isCommandAvailable rejects unsafe characters ---
-
-(async () => {
-  const result = await isCommandAvailable('echo;rm');
-  assert(result === false, 'isCommandAvailable should reject commands with semicolons');
-})();
-
-(async () => {
-  const result = await isCommandAvailable('$(id)');
-  assert(result === false, 'isCommandAvailable should reject commands with shell metacharacters');
-})();
+// Tests 4-5 are collected into runAsyncTests below
 
 // --- Test 6: run.js argument parsing ---
 
@@ -148,6 +129,39 @@ function testRunJs(args, expectedExitCode, stderrCheck, testName) {
 }
 
 async function runAsyncTests() {
+  // --- Test 4: detectAcpSupport with unknown provider ---
+  {
+    const result = await detectAcpSupport('nonexistent');
+    assert(result.available === false, 'Unknown provider should not be available');
+    assert(result.provider === null, 'Unknown provider should return null provider');
+    assert(result.reason.includes('Unknown provider'), 'Should explain unknown provider');
+  }
+
+  // --- Test 5: isCommandAvailable ---
+  {
+    const r1 = await isCommandAvailable('echo;rm');
+    assert(r1 === false, 'isCommandAvailable should reject commands with semicolons');
+
+    const r2 = await isCommandAvailable('$(id)');
+    assert(r2 === false, 'isCommandAvailable should reject commands with shell metacharacters');
+
+    const r3 = await isCommandAvailable('node');
+    assert(r3 === true, 'isCommandAvailable should find node on PATH');
+  }
+
+  // --- Test 5b: detectAllAcpSupport ---
+  {
+    const { detectAllAcpSupport } = require(path.join(root, 'acp', 'providers'));
+    const allResults = await detectAllAcpSupport();
+    assert(typeof allResults === 'object', 'detectAllAcpSupport returns an object');
+    for (const name of ['claude', 'gemini', 'codex', 'copilot', 'kiro', 'opencode']) {
+      assert(name in allResults, `detectAllAcpSupport result includes ${name}`);
+      assert('available' in allResults[name], `${name} has available field`);
+    }
+  }
+
+  // --- Test 6: run.js argument parsing ---
+
   // Test: missing --provider
   await testRunJs(
     ['--question-file=test.tmp'],
@@ -197,12 +211,98 @@ async function runAsyncTests() {
     'run.js --detect should fail with unknown provider'
   );
 
+  // Test: timeout=0 should fail
+  await testRunJs(
+    ['--provider=claude', '--question-file=test.tmp', '--timeout=0'],
+    1, '--timeout must be a positive integer',
+    'run.js should fail with timeout=0'
+  );
+
+  // Test: NaN timeout should fail
+  await testRunJs(
+    ['--provider=claude', '--question-file=test.tmp', '--timeout=abc'],
+    1, '--timeout must be a positive integer',
+    'run.js should fail with NaN timeout'
+  );
+
+  // Test: leading-dash session ID should fail
+  await testRunJs(
+    ['--provider=claude', '--question-file=test.tmp', '--session-id=-bad'],
+    1, '--session-id contains invalid characters',
+    'run.js should fail with leading-dash session ID'
+  );
+
   // Test: question file not found
   await testRunJs(
     ['--provider=gemini', '--question-file=/nonexistent/path/q.tmp', '--timeout=5000'],
     1, 'Cannot read question file',
     'run.js should fail when question file does not exist'
   );
+}
+
+// --- Test 6b: Mock ACP protocol test ---
+
+const MOCK_AGENT_SCRIPT = `
+process.stdin.setEncoding('utf8');
+let buf = '';
+process.stdin.on('data', chunk => {
+  buf += chunk;
+  const lines = buf.split('\\n');
+  buf = lines.pop();
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    try {
+      const msg = JSON.parse(line);
+      if (msg.method === 'initialize') {
+        process.stdout.write(JSON.stringify({
+          jsonrpc: '2.0', id: msg.id,
+          result: { protocolVersion: 1, agentCapabilities: {}, agentInfo: { name: 'mock-agent', version: '1.0.0' } }
+        }) + '\\n');
+      } else if (msg.method === 'session/new') {
+        process.stdout.write(JSON.stringify({
+          jsonrpc: '2.0', id: msg.id,
+          result: { sessionId: 'mock-session-123' }
+        }) + '\\n');
+      } else if (msg.method === 'session/prompt') {
+        process.stdout.write(JSON.stringify({
+          jsonrpc: '2.0', method: 'session/update',
+          params: { sessionId: 'mock-session-123', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Hello from mock' } } }
+        }) + '\\n');
+        process.stdout.write(JSON.stringify({
+          jsonrpc: '2.0', id: msg.id,
+          result: { stopReason: 'end_turn', usage: null }
+        }) + '\\n');
+      }
+    } catch {}
+  }
+});
+`;
+
+async function testMockAcpProtocol() {
+  const client = new AcpClient({ command: 'node', args: ['-e', MOCK_AGENT_SCRIPT], timeout: 10000 });
+
+  await client.connect();
+  assert(true, 'Mock ACP agent connects successfully');
+
+  const initResult = await client.initialize();
+  assert(initResult.protocolVersion === 1, 'Initialize returns protocolVersion 1');
+  assert(initResult.agentInfo.name === 'mock-agent', 'Initialize returns agent name');
+
+  const sessionResult = await client.newSession();
+  assert(sessionResult.sessionId === 'mock-session-123', 'Session/new returns sessionId');
+  assert(client.sessionId === 'mock-session-123', 'Client stores sessionId');
+
+  const chunks = [];
+  client.on('chunk', (text) => chunks.push(text));
+
+  const promptResult = await client.prompt('test question');
+  assert(promptResult.text === 'Hello from mock', 'Prompt collects response text');
+  assert(promptResult.stopReason === 'end_turn', 'Prompt returns stop reason');
+  assert(chunks.length === 1, 'Chunk event fired once');
+  assert(chunks[0] === 'Hello from mock', 'Chunk contains correct text');
+
+  await client.close();
+  assert(true, 'Mock ACP agent closes cleanly');
 }
 
 // --- Test 7: ACP client env handling ---
@@ -252,16 +352,18 @@ for (const f of acpFiles) {
 
 // --- Run async tests and report ---
 
-runAsyncTests().then(() => {
-  // Small delay for any outstanding async assertions
-  setTimeout(() => {
-    if (failures.length > 0) {
-      console.error(`[ERROR] ACP client tests: ${failures.length} failures, ${passCount} passed`);
-      for (const f of failures) {
-        console.error(`  - ${f}`);
-      }
-      process.exit(1);
+async function runAllAsyncTests() {
+  await testMockAcpProtocol();
+  await runAsyncTests();
+}
+
+runAllAsyncTests().then(() => {
+  if (failures.length > 0) {
+    console.error(`[ERROR] ACP client tests: ${failures.length} failures, ${passCount} passed`);
+    for (const f of failures) {
+      console.error(`  - ${f}`);
     }
-    console.log(`[OK] ACP client tests: ${passCount} passed`);
-  }, 500);
+    process.exit(1);
+  }
+  console.log(`[OK] ACP client tests: ${passCount} passed`);
 });

@@ -22,7 +22,7 @@ const { resolve: resolvePath } = require('path');
 const { AcpClient } = require('./client');
 const { ACP_PROVIDERS, detectAcpSupport } = require('./providers');
 
-// --- Output sanitization patterns (from consult SKILL.md) ---
+// --- Output sanitization patterns ---
 
 const REDACTION_PATTERNS = [
   [/sk-[a-zA-Z0-9_-]{20,}/g, '[REDACTED_API_KEY]'],
@@ -126,7 +126,6 @@ async function runConsult(args) {
   const timeout = args.timeout || 120000;
   const startTime = Date.now();
 
-  // Read question from file (safe - no shell interpolation)
   let question;
   try {
     question = readFileSync(resolvePath(args.questionFile), 'utf8');
@@ -149,23 +148,15 @@ async function runConsult(args) {
   });
 
   try {
-    // Step 1: Connect
     await client.connect();
-
-    // Step 2: Initialize handshake
     const initResult = await client.initialize();
     const agentInfo = initResult.agentInfo || {};
-
-    // Step 3: Create session
     await client.newSession(process.cwd());
-
-    // Step 4: Send prompt and collect response
     const result = await client.prompt(question);
 
     const durationMs = Date.now() - startTime;
     const responseText = sanitize(result.text || '');
 
-    // Build output envelope (matches consult SKILL.md format)
     const output = {
       tool: args.provider,
       model: args.model || agentInfo.name || args.provider,

@@ -53,7 +53,6 @@ class AcpClient extends EventEmitter {
   async connect() {
     if (this.#proc) throw new Error('Already connected');
 
-    // Build env: merge process.env with overrides, delete keys set to undefined
     const env = { ...process.env };
     for (const [key, val] of Object.entries(this.env)) {
       if (val === undefined) delete env[key];
@@ -67,7 +66,6 @@ class AcpClient extends EventEmitter {
       windowsHide: true,
     });
 
-    // Wait for spawn or error
     await new Promise((resolve, reject) => {
       this.#proc.once('spawn', resolve);
       this.#proc.once('error', (err) => {
@@ -76,7 +74,6 @@ class AcpClient extends EventEmitter {
       });
     });
 
-    // Parse newline-delimited JSON from stdout
     this.#rl = createInterface({ input: this.#proc.stdout });
     this.#rl.on('line', (line) => {
       const trimmed = line.trim();
@@ -84,14 +81,12 @@ class AcpClient extends EventEmitter {
       try {
         this.#dispatch(JSON.parse(trimmed));
       } catch {
-        // Ignore non-JSON lines (agent diagnostics, progress text)
+        // Ignore non-JSON lines (agent diagnostics)
       }
     });
 
-    // Handle subprocess exit
     this.#proc.on('close', () => {
       this.#closed = true;
-      // Reject all pending requests
       for (const [id, pending] of this.#pending) {
         clearTimeout(pending.timer);
         pending.reject(new Error('ACP agent process exited'));
@@ -100,7 +95,6 @@ class AcpClient extends EventEmitter {
       this.emit('close');
     });
 
-    // Forward stderr for diagnostics
     this.#proc.stderr.on('data', (chunk) => {
       this.emit('stderr', chunk.toString());
     });
@@ -174,7 +168,6 @@ class AcpClient extends EventEmitter {
 
     this.#proc.kill('SIGTERM');
 
-    // Wait for exit with fallback to SIGKILL
     await new Promise((resolve) => {
       const killTimer = setTimeout(() => {
         if (this.#proc && !this.#closed) {
@@ -201,8 +194,6 @@ class AcpClient extends EventEmitter {
     }
     this.#proc = null;
   }
-
-  // --- Private methods ---
 
   #send(msg) {
     if (this.#closed || !this.#proc) return;
@@ -231,7 +222,6 @@ class AcpClient extends EventEmitter {
   }
 
   #dispatch(msg) {
-    // Response to our request (has id, has result or error)
     if ('id' in msg && !('method' in msg)) {
       const pending = this.#pending.get(msg.id);
       if (!pending) return;
@@ -247,13 +237,11 @@ class AcpClient extends EventEmitter {
       return;
     }
 
-    // Inbound request from agent (has id and method)
     if ('id' in msg && 'method' in msg) {
       this.#handleAgentRequest(msg);
       return;
     }
 
-    // Notification from agent (has method, no id)
     if ('method' in msg && !('id' in msg)) {
       this.#handleNotification(msg);
     }
