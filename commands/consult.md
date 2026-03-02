@@ -3,7 +3,7 @@ name: consult
 description: Consult another AI CLI tool for a second opinion. Use when you want to cross-check ideas, get alternative approaches, or validate decisions with Gemini, Codex, Claude, OpenCode, or Copilot.
 codex-description: 'Use when user asks to "consult gemini", "ask codex", "get second opinion", "cross-check with claude", "consult another AI", "ask opencode", "copilot opinion", "ask 3 codex", "multi-consult". Queries another AI CLI tool and returns the response.'
 argument-hint: "[natural language or flags] [--tool] [--effort] [--model] [--context] [--continue] [--count=N]"
-allowed-tools: Skill, Task, Bash(git:*), Bash(claude:*), Bash(gemini:*), Bash(codex:*), Bash(opencode:*), Bash(copilot:*), Bash(where.exe:*), Bash(which:*), Read, Write, AskUserQuestion
+allowed-tools: Skill, Task, Bash(git:*), Bash(claude:*), Bash(gemini:*), Bash(codex:*), Bash(opencode:*), Bash(copilot:*), Bash(kiro-cli:*), Bash(node:*), Bash(npx:*), Bash(where.exe:*), Bash(which:*), Read, Write, AskUserQuestion
 ---
 
 # /consult - Cross-Tool AI Consultation
@@ -16,7 +16,9 @@ You are executing the /consult command. Your job is to parse the user's request 
 - NEVER run with permission-bypassing flags (`--dangerously-skip-permissions`, `bypassPermissions`)
 - MUST use safe-mode defaults (`env -u CLAUDECODE ... --allowedTools "Read,Glob,Grep"` for Claude, `-c model_reasoning_effort` for Codex). For Codex non-interactive exec mode, resolve `SKIP_GIT_FLAG` via trust gate: empty in trusted git repos, `--skip-git-repo-check` only for trusted non-repo execution.
 - MUST enforce 120s timeout on all tool executions
-- MUST validate tool names against allow-list: gemini, codex, claude, opencode, copilot (reject all others)
+- MUST validate tool names against allow-list: gemini, codex, claude, opencode, copilot, kiro (reject all others)
+- MUST prefer ACP transport when available (structured protocol, session persistence)
+- MUST fall back to CLI transport when ACP is unavailable
 - MUST validate `--context=file=PATH` is within the project directory (reject absolute paths outside cwd)
 - MUST enforce the Codex trust gate before setting `SKIP_GIT_FLAG` (same project working directory + resolved active tool is Codex, including flag/NLP/picker/`--continue` restore paths)
 - MUST quote all user-provided values in shell commands to prevent injection
@@ -32,7 +34,7 @@ Parse `$ARGUMENTS` using both explicit flags and natural language extraction. Fl
 
 Look for and remove these flags from `$ARGUMENTS`:
 
-1. `--tool=VALUE` or `--tool VALUE` where VALUE is one of: gemini, codex, claude, opencode, copilot
+1. `--tool=VALUE` or `--tool VALUE` where VALUE is one of: gemini, codex, claude, opencode, copilot, kiro
 2. `--effort=VALUE` or `--effort VALUE` where VALUE is one of: low, medium, high, max
 3. `--model=VALUE` or `--model VALUE` (any string, including quoted)
 4. `--context=VALUE` where VALUE is: diff, file=PATH, or none
@@ -50,7 +52,7 @@ After removing flags, parse the remaining text for these patterns:
 - "ask {tool}" (e.g., "ask gemini") -> tool
 - "consult {tool}" -> tool
 - "{tool} about" (e.g., "codex about") -> tool
-- Tool names: claude, gemini, codex, opencode, copilot
+- Tool names: claude, gemini, codex, opencode, copilot, kiro
 
 **Count extraction**:
 - "ask {N} {tool}" (e.g., "ask 3 codex") -> count=N, tool
@@ -101,9 +103,28 @@ Run all 5 checks **in parallel** via Bash:
 - `where.exe <tool> 2>nul && echo FOUND || echo NOTFOUND` (Windows)
 - `which <tool> 2>/dev/null && echo FOUND || echo NOTFOUND` (Unix)
 
-Check for: claude, gemini, codex, opencode, copilot.
+Check for: claude, gemini, codex, opencode, copilot, kiro-cli.
 
-If zero tools are installed: `[ERROR] No AI CLI tools found. Install at least one: npm i -g @anthropic-ai/claude-code, npm i -g @openai/codex, npm i -g opencode-ai`
+#### Step 2b-acp: Detect ACP support (parallel with Step 2b)
+
+For each tool found in Step 2b (plus kiro-cli), check ACP support in parallel:
+
+```
+node acp/run.js --detect --provider="claude"
+node acp/run.js --detect --provider="gemini"
+node acp/run.js --detect --provider="codex"
+node acp/run.js --detect --provider="opencode"
+node acp/run.js --detect --provider="copilot"
+node acp/run.js --detect --provider="kiro"
+```
+
+Record which providers have ACP support. This enables:
+- Kiro as a consultation target (ACP-only provider, no CLI mode)
+- Preferred ACP transport for providers that support both CLI and ACP
+
+If the `node` command is not available, skip ACP detection and use CLI transport only.
+
+If zero tools are installed (neither CLI nor ACP): `[ERROR] No AI CLI tools found. Install at least one: npm i -g @anthropic-ai/claude-code, npm i -g @openai/codex, npm i -g opencode-ai`
 
 #### Step 2c: Batch selection for missing params
 
@@ -121,6 +142,7 @@ AskUserQuestion:
         - label: "Codex"        description: "Agentic coding"
         - label: "OpenCode"     description: "Flexible model choice"
         - label: "Copilot"      description: "GitHub-integrated AI"
+        - label: "Kiro"         description: "AWS agentic AI (ACP only)"
 
     - header: "Effort"                           # SKIP if effort resolved
       question: "What thinking effort level?"
@@ -222,6 +244,10 @@ AskUserQuestion:
         - label: "gpt-5.3-codex"            description: "OpenAI GPT-5.3 Codex"
         - label: "gemini-3.1-pro-preview"           description: "Google Gemini 3.1 Pro"
 ```
+
+**For Kiro:**
+
+Kiro does not support model selection. Skip the model picker for Kiro. Set model to `"kiro"` and proceed directly to Phase 3.
 
 Map the user's choice to the model string (strip " (Recommended)" suffix if present).
 

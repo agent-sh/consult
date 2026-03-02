@@ -1,6 +1,6 @@
 ---
 name: consult-agent
-description: "Execute cross-tool AI consultations via Task spawning. Use when agents or workflows need a second opinion from Gemini, Codex, Claude, OpenCode, or Copilot. Supports multi-instance parallel consultations (count > 1)."
+description: "Execute cross-tool AI consultations via Task spawning. Use when agents or workflows need a second opinion from Gemini, Codex, Claude, OpenCode, Copilot, or Kiro. Supports ACP transport and multi-instance parallel consultations (count > 1)."
 tools:
   - Skill
   - Bash(claude:*)
@@ -8,6 +8,9 @@ tools:
   - Bash(codex:*)
   - Bash(opencode:*)
   - Bash(copilot:*)
+  - Bash(kiro-cli:*)
+  - Bash(node:*)
+  - Bash(npx:*)
   - Bash(git:*)
   - Bash(where.exe:*)
   - Bash(which:*)
@@ -41,7 +44,7 @@ Orchestration work: parse config, invoke skill, execute CLI command, parse outpu
 Extract from prompt. ALL parameters MUST be pre-resolved by the caller (the /consult command or direct Task invocation). This agent runs as a subagent and cannot interact with the user.
 
 **Required** (caller must provide):
-- **tool**: Target tool (claude, gemini, codex, opencode, copilot)
+- **tool**: Target tool (claude, gemini, codex, opencode, copilot, kiro)
 - **question**: The consultation question
 - **effort**: Thinking effort level (low, medium, high, max)
 
