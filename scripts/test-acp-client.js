@@ -93,7 +93,7 @@ assert(ACP_PROVIDERS.opencode.command === 'opencode', 'OpenCode ACP should use o
 assert(ACP_PROVIDERS.opencode.args.includes('acp'), 'OpenCode ACP should include acp arg');
 assert(ACP_PROVIDERS.kiro.supportsModel === false, 'Kiro should not support model selection');
 assert(ACP_PROVIDERS.copilot.supportsContinue === false, 'Copilot should not support continue');
-assert(ACP_PROVIDERS.kiro.supportsContinue === false, 'Kiro should not support continue');
+assert(ACP_PROVIDERS.kiro.supportsContinue === true, 'Kiro supports session continue via ACP loadSession');
 
 // Tests 4-5 are collected into runAsyncTests below
 
