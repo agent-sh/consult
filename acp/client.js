@@ -25,7 +25,7 @@ class AcpClient extends EventEmitter {
   #nextId = 0;
   #pending = new Map(); // id -> { resolve, reject, timer }
   #sessionId = null;
-  #responseText = '';
+  #responseChunks = [];
   #closed = false;
   #timeout;
 
@@ -87,6 +87,7 @@ class AcpClient extends EventEmitter {
 
     this.#proc.on('close', () => {
       this.#closed = true;
+      if (this.#rl) { this.#rl.close(); this.#rl = null; }
       for (const [id, pending] of this.#pending) {
         clearTimeout(pending.timer);
         pending.reject(new Error('ACP agent process exited'));
@@ -132,7 +133,7 @@ class AcpClient extends EventEmitter {
    * @returns {Promise<{text: string, stopReason: string, usage: Object|null}>}
    */
   async prompt(text, sessionId) {
-    this.#responseText = '';
+    this.#responseChunks = [];
     const sid = sessionId || this.#sessionId;
     if (!sid) throw new Error('No session ID - call newSession() first');
 
@@ -142,7 +143,7 @@ class AcpClient extends EventEmitter {
     });
 
     return {
-      text: this.#responseText,
+      text: this.#responseChunks.join(''),
       stopReason: result.stopReason || 'end_turn',
       usage: result.usage || null,
     };
@@ -297,7 +298,7 @@ class AcpClient extends EventEmitter {
       if (update.sessionUpdate === 'agent_message_chunk') {
         const content = update.content;
         if (content && content.type === 'text' && content.text) {
-          this.#responseText += content.text;
+          this.#responseChunks.push(content.text);
           this.emit('chunk', content.text);
         }
       } else if (update.sessionUpdate === 'tool_call') {

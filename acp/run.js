@@ -74,6 +74,8 @@ function parseArgs(argv) {
       args.model = arg.slice('--model='.length);
     } else if (arg.startsWith('--session-id=')) {
       args.sessionId = arg.slice('--session-id='.length);
+    } else if (arg.startsWith('--effort=')) {
+      args.effort = arg.slice('--effort='.length);
     }
   }
   return args;
@@ -126,9 +128,16 @@ async function runConsult(args) {
   const timeout = args.timeout || 120000;
   const startTime = Date.now();
 
+  const resolvedQuestionPath = resolvePath(args.questionFile);
+  const cwd = process.cwd();
+  if (!resolvedQuestionPath.startsWith(cwd + '/') && resolvedQuestionPath !== cwd) {
+    writeError('--question-file must be within the current working directory');
+    process.exit(1);
+  }
+
   let question;
   try {
-    question = readFileSync(resolvePath(args.questionFile), 'utf8');
+    question = readFileSync(resolvedQuestionPath, 'utf8');
   } catch (err) {
     writeError(`Cannot read question file: ${err.message}`);
     process.exit(1);
@@ -149,8 +158,7 @@ async function runConsult(args) {
 
   try {
     await client.connect();
-    const initResult = await client.initialize();
-    const agentInfo = initResult.agentInfo || {};
+    await client.initialize();
     await client.newSession(process.cwd());
     const result = await client.prompt(question);
 
@@ -159,8 +167,8 @@ async function runConsult(args) {
 
     const output = {
       tool: args.provider,
-      model: args.model || agentInfo.name || args.provider,
-      effort: 'medium',
+      model: args.model || args.provider,
+      effort: args.effort || 'medium',
       duration_ms: durationMs,
       response: responseText,
       session_id: client.sessionId || null,
@@ -180,7 +188,7 @@ async function runConsult(args) {
 
 function writeError(message, durationMs) {
   const output = {
-    error: message,
+    error: sanitize(message),
     transport: 'acp',
   };
   if (durationMs !== undefined) output.duration_ms = durationMs;

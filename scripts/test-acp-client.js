@@ -232,11 +232,18 @@ async function runAsyncTests() {
     'run.js should fail with leading-dash session ID'
   );
 
-  // Test: question file not found
+  // Test: question file not found (relative path within cwd)
   await testRunJs(
-    ['--provider=gemini', '--question-file=/nonexistent/path/q.tmp', '--timeout=5000'],
+    ['--provider=gemini', '--question-file=nonexistent-file-xyz.tmp', '--timeout=5000'],
     1, 'Cannot read question file',
     'run.js should fail when question file does not exist'
+  );
+
+  // Test: question file outside cwd (absolute path)
+  await testRunJs(
+    ['--provider=gemini', '--question-file=/tmp/outside-cwd-test.tmp', '--timeout=5000'],
+    1, '--question-file must be within the current working directory',
+    'run.js should reject question file outside cwd'
   );
 }
 
@@ -366,4 +373,7 @@ runAllAsyncTests().then(() => {
     process.exit(1);
   }
   console.log(`[OK] ACP client tests: ${passCount} passed`);
+}).catch((err) => {
+  console.error(`[ERROR] Test suite crashed: ${err.message}`);
+  process.exit(1);
 });
