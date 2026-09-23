@@ -428,7 +428,7 @@ assertContains(
 
 assertContains(
   skill,
-  /Prefer ACP when/,
+  /Prefer ACP \(except Codex and OpenCode at non-medium effort/,
   'SKILL.md must document ACP transport preference.',
   failures
 );
