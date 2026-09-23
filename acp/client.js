@@ -28,6 +28,7 @@ class AcpClient extends EventEmitter {
   #responseChunks = [];
   #closed = false;
   #timeout;
+  #capabilities = {};
 
   /**
    * @param {Object} options
@@ -111,7 +112,13 @@ class AcpClient extends EventEmitter {
       },
       clientInfo: clientInfo || { name: 'agentsys-consult', version: '1.0.0' },
     });
+    this.#capabilities = (result && result.agentCapabilities) || {};
     return result;
+  }
+
+  /** True when the agent advertised `loadSession` in initialize. */
+  get canLoadSession() {
+    return this.#capabilities.loadSession === true;
   }
 
   /** Create a new session. Returns { sessionId, modes, models, configOptions }. */
@@ -122,6 +129,65 @@ class AcpClient extends EventEmitter {
     });
     this.#sessionId = result.sessionId;
     return result;
+  }
+
+  /**
+   * Resume an earlier session. The agent replays the conversation as
+   * session/update notifications; prompt() clears them before collecting.
+   */
+  async loadSession(sessionId, cwd, mcpServers) {
+    if (!this.canLoadSession) {
+      throw new Error('ACP agent does not support session/load');
+    }
+    const result = await this.#request('session/load', {
+      sessionId,
+      cwd: cwd || this.cwd,
+      mcpServers: mcpServers || [],
+    });
+    this.#sessionId = sessionId;
+    return result || {};
+  }
+
+  /**
+   * Select a model for the current session. Uses the stable `model` config
+   * option when the agent exposes one, else the older `session/set_model`.
+   * Throws with code 'model-unsupported' when neither exists or the id is not
+   * offered, so the caller can fall back to a transport that takes a model.
+   *
+   * @param {string} modelId
+   * @param {Object} session - result of newSession() or loadSession()
+   * @returns {Promise<string>} the model id now in effect
+   */
+  async setModel(modelId, session) {
+    const sid = this.#sessionId;
+    const configOptions = (session && session.configOptions) || [];
+    const option = configOptions.find(o => o && (o.category === 'model' || o.id === 'model') && o.type === 'select');
+    if (option) {
+      const values = [];
+      for (const entry of option.options || []) {
+        if (entry && Array.isArray(entry.options)) values.push(...entry.options.map(v => v.value));
+        else if (entry) values.push(entry.value);
+      }
+      if (!values.includes(modelId)) {
+        throw unsupported(`model "${modelId}" not offered; available: ${values.join(', ')}`);
+      }
+      if (option.currentValue !== modelId) {
+        await this.#request('session/set_config_option', { sessionId: sid, configId: option.id, value: modelId });
+      }
+      return modelId;
+    }
+    const models = session && session.models;
+    if (models && Array.isArray(models.availableModels)) {
+      const ids = models.availableModels.map(m => m.modelId);
+      if (!ids.includes(modelId)) {
+        throw unsupported(`model "${modelId}" not offered; available: ${ids.join(', ')}`);
+      }
+      if (models.currentModelId !== modelId) {
+        await this.#request('session/set_model', { sessionId: sid, modelId });
+      }
+      return modelId;
+    }
+    throw unsupported('agent does not expose model selection over ACP');
   }
 
   /**
@@ -314,6 +380,12 @@ class AcpClient extends EventEmitter {
       }
     }
   }
+}
+
+function unsupported(message) {
+  const err = new Error(message);
+  err.code = 'model-unsupported';
+  return err;
 }
 
 module.exports = { AcpClient, PROTOCOL_VERSION };

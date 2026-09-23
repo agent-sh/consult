@@ -1,6 +1,6 @@
 {
   "name": "@agentsys/consult",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cross-tool AI consultation: get second opinions from Gemini, Codex, Claude, OpenCode, or Copilot CLI",
   "author": {
     "name": "Avi Fenesh",
