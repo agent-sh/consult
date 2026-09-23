@@ -312,6 +312,81 @@ async function testMockAcpProtocol() {
   assert(true, 'Mock ACP agent closes cleanly');
 }
 
+// --- Test 6c: model selection and session resume against a mock agent ---
+
+const MOCK_AGENT_CONFIG = `
+process.stdin.setEncoding('utf8');
+let buf = '';
+let model = 'm-small';
+const seen = [];
+const send = o => process.stdout.write(JSON.stringify(o) + '\\n');
+process.stdin.on('data', chunk => {
+  buf += chunk;
+  const lines = buf.split('\\n');
+  buf = lines.pop();
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const msg = JSON.parse(line);
+    seen.push(msg.method);
+    if (msg.method === 'initialize') {
+      send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true } } });
+    } else if (msg.method === 'session/new' || msg.method === 'session/load') {
+      if (msg.method === 'session/load') {
+        send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: msg.params.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'REPLAYED' } } } });
+      }
+      send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: msg.params.sessionId || 'cfg-1', configOptions: [
+        { id: 'model', name: 'Model', category: 'model', type: 'select', currentValue: model,
+          options: [{ group: 'g', name: 'G', options: [{ value: 'm-small', name: 'S' }, { value: 'm-big', name: 'B' }] }] } ] } });
+    } else if (msg.method === 'session/set_config_option') {
+      model = msg.params.value;
+      send({ jsonrpc: '2.0', id: msg.id, result: { configOptions: [] } });
+    } else if (msg.method === 'session/prompt') {
+      send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: msg.params.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'answered by ' + model + ' after ' + seen.join(',') } } } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+    }
+  }
+});
+`;
+
+async function testMockModelAndResume() {
+  const client = new AcpClient({ command: 'node', args: ['-e', MOCK_AGENT_CONFIG], timeout: 10000 });
+  await client.connect();
+  await client.initialize();
+  assert(client.canLoadSession === true, 'canLoadSession reflects agentCapabilities.loadSession');
+  const session = await client.newSession();
+  const used = await client.setModel('m-big', session);
+  assert(used === 'm-big', 'setModel returns the selected model');
+  let unsupportedCode = null;
+  try { await client.setModel('m-huge', session); } catch (e) { unsupportedCode = e.code; }
+  assert(unsupportedCode === 'model-unsupported', 'setModel rejects a model the agent does not offer');
+  const r = await client.prompt('q');
+  assert(r.text.startsWith('answered by m-big'), 'prompt runs on the selected model');
+  await client.close();
+
+  const resumed = new AcpClient({ command: 'node', args: ['-e', MOCK_AGENT_CONFIG], timeout: 10000 });
+  await resumed.connect();
+  await resumed.initialize();
+  await resumed.loadSession('prev-7');
+  assert(resumed.sessionId === 'prev-7', 'loadSession keeps the resumed session id');
+  const r2 = await resumed.prompt('q2');
+  assert(!r2.text.includes('REPLAYED'), 'replayed history is not returned as the answer');
+  assert(r2.text.includes('session/load'), 'resume uses session/load, not session/new');
+  await resumed.close();
+
+  // An agent without model options: setModel must refuse instead of pretending.
+  const plain = new AcpClient({ command: 'node', args: ['-e', MOCK_AGENT_SCRIPT], timeout: 10000 });
+  await plain.connect();
+  await plain.initialize();
+  const s = await plain.newSession();
+  let code = null;
+  try { await plain.setModel('anything', s); } catch (e) { code = e.code; }
+  assert(code === 'model-unsupported', 'setModel refuses when the agent exposes no model selection');
+  let loadErr = null;
+  try { await plain.loadSession('x'); } catch (e) { loadErr = e.message; }
+  assert(/does not support session\/load/.test(loadErr || ''), 'loadSession refuses without the capability');
+  await plain.close();
+}
+
 // --- Test 7: ACP client env handling ---
 
 {
@@ -361,6 +436,7 @@ for (const f of acpFiles) {
 
 async function runAllAsyncTests() {
   await testMockAcpProtocol();
+  await testMockModelAndResume();
   await runAsyncTests();
 }
 

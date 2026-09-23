@@ -263,7 +263,22 @@ async function runConsult(args) {
   try {
     await client.connect();
     await client.initialize();
-    await client.newSession(process.cwd());
+    let session;
+    if (args.sessionId) {
+      if (!client.canLoadSession) {
+        const err = new Error(`Provider "${args.provider}" cannot resume sessions over ACP`);
+        err.code = 'resume-unsupported';
+        throw err;
+      }
+      session = await client.loadSession(args.sessionId, process.cwd());
+    } else {
+      session = await client.newSession(process.cwd());
+    }
+    // A model the transport cannot select must not be reported as used.
+    let modelUsed = null;
+    if (args.model) {
+      modelUsed = await client.setModel(args.model, session);
+    }
     const result = await client.prompt(question);
 
     const durationMs = Date.now() - startTime;
@@ -272,12 +287,13 @@ async function runConsult(args) {
     // Validate response - provider returned something meaningful
     if (!responseText.trim()) {
       writeError(`Provider ${args.provider} returned an empty response (stopReason: ${result.stopReason})`, durationMs);
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
 
     const output = {
       tool: args.provider,
-      model: args.model || args.provider,
+      model: modelUsed || 'provider-default',
       effort: args.effort || 'medium',
       duration_ms: durationMs,
       response: responseText,
@@ -291,8 +307,13 @@ async function runConsult(args) {
     const durationMs = Date.now() - startTime;
     const msg = err.message || '';
 
-    // Surface actionable error messages for common failures
-    if (msg.includes('Failed to spawn')) {
+    // Surface actionable error messages for common failures.
+    // Exit 3 means "this transport cannot do what was asked": use the CLI transport instead.
+    if (err.code === 'model-unsupported' || err.code === 'resume-unsupported') {
+      writeError(`${msg}. Use the CLI transport for this request.`, durationMs, err.code);
+      process.exitCode = 3;
+      return;
+    } else if (msg.includes('Failed to spawn')) {
       writeError(`Provider "${args.provider}" not installed. Install ${provider.command} or check PATH.`, durationMs);
     } else if (msg.includes('timed out')) {
       writeError(`Provider "${args.provider}" timed out after ${timeout}ms. Try --effort=low or increase --timeout.`, durationMs);
@@ -303,9 +324,11 @@ async function runConsult(args) {
     } else {
       writeError(msg, durationMs);
     }
-    process.exit(1);
+    // exitCode, not exit(): exit() here would skip the cleanup below.
+    process.exitCode = 1;
   } finally {
-    cleanupTempFile(resolvedQuestionPath);
+    // On exit 3 the caller retries over the CLI transport with the same question file.
+    if (process.exitCode !== 3) cleanupTempFile(resolvedQuestionPath);
     await client.close();
   }
 }
@@ -315,11 +338,12 @@ function cleanupTempFile(filePath) {
   try { unlinkSync(filePath); } catch { /* already gone */ }
 }
 
-function writeError(message, durationMs) {
+function writeError(message, durationMs, code) {
   const output = {
     error: sanitize(message),
     transport: 'acp',
   };
+  if (code) output.code = code;
   if (durationMs !== undefined) output.duration_ms = durationMs;
   process.stderr.write(JSON.stringify(output) + '\n');
 }

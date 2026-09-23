@@ -21,11 +21,12 @@ function assertNotContains(text, pattern, message, failures) {
   }
 }
 
-const skill = read('skills/consult/SKILL.md');
+// The skill body plus its provider reference form one contract.
+const skill = read('skills/consult/SKILL.md') + '\n' + read('skills/consult/references/providers.md');
 const agent = read('agents/consult-agent.md');
 const command = read('commands/consult.md');
 const constraintsStart = command.indexOf('## Constraints');
-const executionStart = command.indexOf('## Execution');
+const executionStart = command.indexOf('## Parse');
 const constraintsSection = (constraintsStart !== -1 && executionStart !== -1 && executionStart > constraintsStart)
   ? command.slice(constraintsStart, executionStart)
   : '';
@@ -84,7 +85,7 @@ assertContains(
 
 assertContains(
   skill,
-  /Non-interactive resume uses `codex exec resume "SESSION_ID" "follow-up prompt" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"`/,
+  /resume uses `codex exec resume "SESSION_ID" "follow-up prompt" --json -m "MODEL" \{SKIP_GIT_FLAG} -c model_reasoning_effort="LEVEL"`/,
   'SKILL.md must pin the Codex continuable resume guidance.',
   failures
 );
@@ -147,27 +148,27 @@ assertContains(
 
 assertContains(
   agent,
-  /question-1\.tmp"\)" --json -m "gpt-5\.3-codex" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
+  /question-1\.tmp"\)" --json -m "gpt-6-astra" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
   'consult-agent.md question-1 example must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   agent,
-  /question-2\.tmp"\)" --json -m "gpt-5\.3-codex" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
+  /question-2\.tmp"\)" --json -m "gpt-6-astra" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
   'consult-agent.md question-2 example must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 assertContains(
   agent,
-  /question-3\.tmp"\)" --json -m "gpt-5\.3-codex" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
+  /question-3\.tmp"\)" --json -m "gpt-6-astra" \{SKIP_GIT_FLAG} -c model_reasoning_effort="high"/,
   'consult-agent.md question-3 example must use conditional {SKIP_GIT_FLAG}.',
   failures
 );
 
 if (!constraintsSection) {
-  failures.push('commands/consult.md must contain ## Constraints and ## Execution sections.');
+  failures.push('commands/consult.md must contain ## Constraints and ## Parse sections.');
 }
 
 assertContains(
@@ -333,32 +334,41 @@ assertNotContains(
 
 assertNotContains(
   agent,
-  /question-1\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check/,
+  /question-1\.tmp"\)" --json -m "gpt-6-astra" --skip-git-repo-check/,
   'consult-agent.md question-1 example must not hardcode skip-git.',
   failures
 );
 
 assertNotContains(
   agent,
-  /question-2\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check/,
+  /question-2\.tmp"\)" --json -m "gpt-6-astra" --skip-git-repo-check/,
   'consult-agent.md question-2 example must not hardcode skip-git.',
   failures
 );
 
 assertNotContains(
   agent,
-  /question-3\.tmp"\)" --json -m "gpt-5\.3-codex" --skip-git-repo-check/,
+  /question-3\.tmp"\)" --json -m "gpt-6-astra" --skip-git-repo-check/,
   'consult-agent.md question-3 example must not hardcode skip-git.',
   failures
 );
 
 assertNotContains(skill, /Command: claude -p "QUESTION"/, 'SKILL.md must not include Claude command templates without env -u CLAUDECODE.', failures);
 
+// --- Model ids: current defaults, no retired ids ---
+for (const [name, text] of [['SKILL.md + reference', skill], ['consult-agent.md', agent], ['commands/consult.md', command]]) {
+  assertNotContains(text, /gpt-5\.[0-9]-codex|claude-(opus|sonnet)-4-[0-9]|gemini-3-flash-preview|gemini-3-pro-preview|us\.anthropic\.claude/,
+    `${name} must not name retired model ids.`, failures);
+}
+for (const id of ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5-5', 'claude-fable-5-1', 'gpt-6-sol', 'gpt-6-astra', 'gemini-3.8-flash']) {
+  assertContains(skill, new RegExp(id.replace(/\./g, '\\.')), `reference model table must include ${id}.`, failures);
+}
+
 // --- ACP Transport assertions ---
 
 assertContains(
   skill,
-  /## ACP Transport/,
+  /## ACP transport/i,
   'SKILL.md must contain ACP Transport section.',
   failures
 );
@@ -407,21 +417,21 @@ assertContains(
 
 assertContains(
   skill,
-  /node acp\/run\.js --provider="PROVIDER" --question-file="\{AI_STATE_DIR\}\/consult\/question\.tmp"/,
+  /node (<plugin>\/)?acp\/run\.js --provider="PROVIDER" --question-file="\{AI_STATE_DIR\}\/consult\/question\.tmp"/,
   'SKILL.md ACP command template must use safe question-file passing.',
   failures
 );
 
 assertContains(
   skill,
-  /If ACP available: use ACP transport/,
+  /Prefer ACP when/,
   'SKILL.md must document ACP transport preference.',
   failures
 );
 
 assertContains(
   skill,
-  /If ACP unavailable: fall back to CLI transport/,
+  /run the CLI template instead/,
   'SKILL.md must document CLI fallback.',
   failures
 );
@@ -448,9 +458,9 @@ assertContains(
 );
 
 assertContains(
-  command,
-  /node acp\/run\.js --detect --provider=/,
-  'commands/consult.md must include ACP detection commands.',
+  skill,
+  /node (<plugin>\/)?acp\/run\.js --detect --provider=/,
+  'SKILL.md must include the ACP detection command (the command follows the skill).',
   failures
 );
 

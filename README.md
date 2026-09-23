@@ -69,7 +69,7 @@ Responses from tools that support sessions (Claude, Gemini, Codex, OpenCode) inc
 ```bash
 /consult "Is this the right approach?" --tool=gemini --effort=high
 /consult "Review this function" --tool=codex --count=3
-/consult "Suggest improvements" --tool=opencode --model=github-copilot/claude-opus-4-6
+/consult "Suggest improvements" --tool=opencode --model=anthropic/claude-sonnet-5
 /consult --continue                             # resume last session
 /consult "Review this file" --context=file=src/index.js --tool=claude
 ```
@@ -89,12 +89,14 @@ Responses from tools that support sessions (Claude, Gemini, Codex, OpenCode) inc
 
 | Effort | Claude | Gemini | Codex |
 |--------|--------|--------|-------|
-| low | claude-haiku-4-5 | gemini-3-flash-preview | gpt-5.3-codex (low reasoning) |
-| medium | claude-sonnet-4-6 | gemini-3-flash-preview | gpt-5.3-codex (medium reasoning) |
-| high | claude-opus-4-6 | gemini-3.1-pro-preview | gpt-5.3-codex (high reasoning) |
-| max | claude-opus-4-6 | gemini-3.1-pro-preview | gpt-5.3-codex (high reasoning) |
+| low | claude-haiku-4-5 | gemini-3.5-flash-lite | gpt-6-sol (low reasoning) |
+| medium | claude-sonnet-5 | gemini-3.8-flash | gpt-6-sol (medium reasoning) |
+| high | claude-opus-5-5 | gemini-3.1-pro-preview | gpt-6-astra (high reasoning) |
+| max | claude-fable-5-1 | gemini-3.1-pro-preview | gpt-6-astra (high reasoning) |
 
-OpenCode uses user-selected models. Copilot does not expose effort control.
+OpenCode and Copilot use the account's configured default unless `--model` is given; Copilot has no effort control. Over ACP, `--model` is applied through the session's model option; when a provider does not offer that model over ACP, the consultation runs over the CLI instead of silently using a different model.
+
+Without `--tool`, `/consult` asks which installed tool to use. In harnesses without a question tool it picks the first installed of codex, gemini, claude, opencode, copilot, kiro that is not the harness itself.
 
 ## Requirements
 
