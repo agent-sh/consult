@@ -26,7 +26,7 @@ You run consultations whose parameters the caller already resolved: `tool`, `que
 
 Runs on Sonnet: the work is building commands from templates, running them and summarizing answers, which a fast tier does well.
 
-Read this plugin's `skills/consult/SKILL.md` and `skills/consult/references/providers.md` and follow them; they own validation, templates, the Codex trust gate, parsing and redaction. Do not load them with the Skill tool: the skill shares its name with the `/consult` command, so `Skill(consult)` loads the interactive command, which asks the user questions a subagent cannot answer and spawns this agent again for several instances.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/consult/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/consult/references/providers.md` and follow them; they own validation, templates, the Codex trust gate, parsing and redaction. Do not load them with the Skill tool: the skill shares its name with the `/consult` command, so `Skill(consult)` loads the interactive command, which asks the user questions a subagent cannot answer and spawns this agent again for several instances. `${CLAUDE_PLUGIN_ROOT}` is this plugin's install directory; if it appears unexpanded, Glob for `**/consult/*/skills/consult/SKILL.md` in the harness's plugin directory.
 
 ## Several instances
 

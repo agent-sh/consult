@@ -86,10 +86,10 @@ node <plugin>/acp/run.js --provider="PROVIDER" --question-file="{AI_STATE_DIR}/c
 ```
 
 - `--detect` exits 0 with `{"acp_available": true}` or 1 with a `reason`.
-- `--model` selects the model through the session's `model` config option (or the older `session/set_model`). The envelope's `model` is what actually ran: `provider-default` when no model was asked for.
+- `--model` selects the model through the session's `model` config option (or the older `session/set_model`). The envelope's `model` is what actually ran, or `null` for the provider's configured default.
 - `--session-id` resumes with `session/load` when the agent supports it.
 - Exit 3 with `"code": "model-unsupported"` or `"resume-unsupported"` means ACP cannot do this request; the question file is kept, so run the CLI template instead. Exit 1 is a real failure.
-- `--effort` is recorded in the envelope only; ACP has no effort control.
+- `--effort` is recorded in the envelope only; ACP carries the model but not reasoning depth. For Codex and OpenCode at any effort other than medium, use the CLI template so the effort reaches `model_reasoning_effort` or `--variant`.
 
 Kiro is ACP-only: it has no CLI mode for consultation.
 

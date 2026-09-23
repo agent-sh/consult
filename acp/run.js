@@ -293,7 +293,8 @@ async function runConsult(args) {
 
     const output = {
       tool: args.provider,
-      model: modelUsed || 'provider-default',
+      // null means the provider's configured default: callers omit --model when resuming.
+      model: modelUsed,
       effort: args.effort || 'medium',
       duration_ms: durationMs,
       response: responseText,

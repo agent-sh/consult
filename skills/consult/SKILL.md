@@ -38,7 +38,7 @@ Every value that reaches a command is checked first, because a crafted value wou
 ## Running a consultation
 
 1. **Question file.** Write the question, with any context prepended (`git diff` output for `--context=diff`, the file for `--context=file=`), to `{AI_STATE_DIR}/consult/question.tmp` with the Write tool. Commands read it from there. Shell quoting cannot make arbitrary text safe inside a command line: `$()` and backticks still expand.
-2. **Transport.** Prefer ACP when `node <plugin>/acp/run.js --detect --provider=<tool>` succeeds: one runner, read-only permissions, redaction and cleanup built in. Exit 3 from the runner means ACP cannot select that model or resume that session; run the CLI template instead with the same question file. Without node, use the CLI templates.
+2. **Transport.** Prefer ACP (except Codex and OpenCode at non-medium effort, where only the CLI carries the effort) when `node <plugin>/acp/run.js --detect --provider=<tool>` succeeds: one runner, read-only permissions, redaction and cleanup built in. Exit 3 from the runner means ACP cannot select that model or resume that session; run the CLI template instead with the same question file. Without node, use the CLI templates.
 3. **Codex trust gate** (below) when the tool is Codex.
 4. **Run** the safe template with a 120-second limit. Never add permission-bypassing flags (`--dangerously-skip-permissions`, `bypassPermissions`, `--yolo`): the consulted tool reads the user's repo and must not write to it.
 5. **Parse, redact, clean up.** Parse per the reference, redact CLI output with the reference patterns, and delete the question file whether the run succeeded or not.
@@ -67,7 +67,7 @@ After a successful run, save `{AI_STATE_DIR}/consult/last-session.json` (shape i
 
 - tool must still be in allow-list: gemini, codex, claude, opencode, copilot, kiro
 - session_id must match `^(?!-)[A-Za-z0-9._:-]+$`
-- model must match `^[A-Za-z0-9._:/-]+$` (reject spaces and shell metacharacters)
+- model must match `^[A-Za-z0-9._:/-]+$` (reject spaces and shell metacharacters); a `null` model means the provider's configured default, so omit `--model`
 - on any failure, reject with `[ERROR] Invalid restored session data` and build no command
 
 No session file: warn and run a fresh consultation.

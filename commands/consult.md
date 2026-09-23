@@ -29,7 +29,7 @@ No question and no `--continue`: `[ERROR] Usage: /consult "your question" or /co
 
 ## Resolve
 
-The consult skill defines tool choice, validation, templates and model defaults. Read it from this plugin (`skills/consult/SKILL.md` and its `references/providers.md`); do not load it with the Skill tool, which would resolve to this command again.
+The consult skill defines tool choice, validation, templates and model defaults. Read `${CLAUDE_PLUGIN_ROOT}/skills/consult/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/consult/references/providers.md`; do not load it with the Skill tool, which would resolve to this command again.
 
 - **Tool** missing: ask with AskUserQuestion, offering only installed tools. Without AskUserQuestion, use the skill's default order.
 - **Effort** missing: medium. Ask only if the request is ambiguous about depth.
