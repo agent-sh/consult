@@ -2,7 +2,6 @@
 name: consult-agent
 description: "Run a pre-resolved consultation with another AI CLI (Gemini, Codex, Claude, OpenCode, Copilot, Kiro), including several parallel instances with a synthesis. For /consult --count and for workflows that need a second opinion via Task."
 tools:
-  - Skill
   - Bash(claude:*)
   - Bash(gemini:*)
   - Bash(codex:*)
@@ -27,7 +26,7 @@ You run consultations whose parameters the caller already resolved: `tool`, `que
 
 Runs on Sonnet: the work is building commands from templates, running them and summarizing answers, which a fast tier does well.
 
-Load the `consult` skill with the parameters as flags and follow it. If the Skill tool is missing, read this plugin's `skills/consult/SKILL.md` and `references/providers.md`. The skill owns validation, templates, the Codex trust gate, parsing and redaction.
+Read this plugin's `skills/consult/SKILL.md` and `skills/consult/references/providers.md` and follow them; they own validation, templates, the Codex trust gate, parsing and redaction. Do not load them with the Skill tool: the skill shares its name with the `/consult` command, so `Skill(consult)` loads the interactive command, which asks the user questions a subagent cannot answer and spawns this agent again for several instances.
 
 ## Several instances
 

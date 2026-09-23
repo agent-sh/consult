@@ -364,6 +364,10 @@ for (const id of ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5-5', 'cla
   assertContains(skill, new RegExp(id.replace(/\./g, '\\.')), `reference model table must include ${id}.`, failures);
 }
 
+// The agent reads the skill file; Skill(consult) resolves to the command and loops back here.
+assertNotContains(agent, /^\s+- Skill$/m, 'consult-agent.md must not list the Skill tool.', failures);
+assertContains(agent, /Do not load them with the Skill tool/, 'consult-agent.md must read the skill file instead of loading it.', failures);
+
 // --- ACP Transport assertions ---
 
 assertContains(

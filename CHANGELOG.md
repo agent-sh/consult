@@ -14,6 +14,7 @@
 - ACP ignored `--model`: the runner never passed it to the agent and reported the requested model as the one used. It now selects the model through the session's `model` config option (or `session/set_model`), reports `provider-default` when none was asked for, and exits 3 (`model-unsupported`) when the agent does not offer the model, so the caller falls back to the CLI.
 - ACP ignored `--session-id`: every run opened a new session. It now resumes with `session/load` when the agent supports it and exits 3 (`resume-unsupported`) otherwise.
 - The ACP runner called `process.exit()` inside `try`, which skipped the `finally` that deletes the question file and closes the agent.
+- consult-agent loaded the skill with `Skill(consult)`, which resolves to the `/consult` command: a subagent then hit AskUserQuestion and, for several instances, spawned itself again. It now reads the skill file and no longer has the Skill tool. Found by revuto.
 - Copilot install hint pointed at the retired `gh extension install github/copilot-cli`.
 
 
