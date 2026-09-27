@@ -7,7 +7,7 @@ locale = "en"
 [rules]
 
 disabled_rules = [
-    "PE-001",      # Auto-generated CLAUDE.md - rule placement controlled by agent-core template
+    "PE-001",      # Auto-generated AGENTS.md - rule placement controlled by agent-core template
     "PE-005",      # "Be concise" is ecosystem-wide boilerplate from agent-core sync
     "CC-MEM-005",  # Same as PE-005 for Claude-specific rules
     "CC-MEM-006",  # Negative instructions (NEVER/Do not) are ecosystem standard critical rules
