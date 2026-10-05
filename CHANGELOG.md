@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- AGENTS.md rewritten for current models, and two lines current models do not need cut from the agent and skill. Same contract; the wording `scripts/test-command-templates.js` pins is unchanged.
+
 ## [1.1.0] - 2026-09-24
 
 ### Changed

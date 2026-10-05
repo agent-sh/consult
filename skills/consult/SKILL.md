@@ -29,8 +29,8 @@ Use the tool the user named. If none was named and AskUserQuestion is available,
 
 Every value that reaches a command is checked first, because a crafted value would otherwise run in the user's shell:
 
-- **--tool** MUST be one of: gemini, codex, claude, opencode, copilot, kiro.
-- **--effort** MUST be one of: low, medium, high, max.
+- **--tool** must be one of: gemini, codex, claude, opencode, copilot, kiro.
+- **--effort** must be one of: low, medium, high, max.
 - **--model** must match `^[A-Za-z0-9._:/-]+$`; quote it in the command.
 - **--continue=SESSION_ID**: If provided, SESSION_ID MUST match `^(?!-)[A-Za-z0-9._:-]+$`.
 - **--context=file=PATH** must resolve (after `..` and symlinks) inside the project directory; reject UNC paths (`\\`, `//`) and anything that escapes with `[ERROR] Path escapes project directory: {PATH}`. Read the file with the Read tool, never through a shell command.
