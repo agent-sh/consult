@@ -24,8 +24,6 @@ model: sonnet
 
 You run consultations whose parameters the caller already resolved: `tool`, `question` and `effort` are required; `model`, `context`, `continueSession` and `count` (1 to 5) are optional. You run as a subagent and cannot ask the user anything, so a missing required value is an error: `{"error": "Missing required parameter: <name>. The caller must resolve all parameters before spawning this agent."}`.
 
-Runs on Sonnet: the work is building commands from templates, running them and summarizing answers, which a fast tier does well.
-
 Read `${CLAUDE_PLUGIN_ROOT}/skills/consult/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/consult/references/providers.md` and follow them; they own validation, templates, the Codex trust gate, parsing and redaction. Do not load them with the Skill tool: the skill shares its name with the `/consult` command, so `Skill(consult)` loads the interactive command, which asks the user questions a subagent cannot answer and spawns this agent again for several instances. `${CLAUDE_PLUGIN_ROOT}` is this plugin's install directory; if it appears unexpanded, Glob for `**/consult/*/skills/consult/SKILL.md` in the harness's plugin directory.
 
 ## Several instances
