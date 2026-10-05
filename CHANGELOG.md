@@ -3,7 +3,8 @@
 ## [Unreleased]
 
 ### Changed
-- AGENTS.md rewritten for current models, and two lines current models do not need cut from the agent and skill. Same contract; the wording `scripts/test-command-templates.js` pins is unchanged.
+- AGENTS.md rewritten for current models, one line cut from the agent and two `MUST`s lowercased in the skill. Same contract; the wording `scripts/test-command-templates.js` pins is unchanged.
+- `.agnix.toml` no longer disables the five rules that existed only for the old generated AGENTS.md, so the lint covers the new one.
 
 ## [1.1.0] - 2026-09-24
 
