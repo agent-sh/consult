@@ -1,7 +1,7 @@
 ---
 name: consult
 description: "Use when the user wants a second opinion from another AI CLI: 'consult gemini', 'ask codex', 'cross-check with claude', 'ask opencode', 'copilot opinion'. Runs one question through that tool and returns its answer."
-version: 5.2.0
+version: 5.3.0
 argument-hint: "[question] [--tool] [--effort] [--model] [--context] [--continue]"
 ---
 
