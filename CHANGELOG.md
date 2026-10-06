@@ -2,9 +2,11 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-06
+
 ### Changed
 - AGENTS.md rewritten for current models, one line cut from the agent and two `MUST`s lowercased in the skill. Same contract; the wording `scripts/test-command-templates.js` pins is unchanged.
-- `.agnix.toml` no longer disables the five rules that existed only for the old generated AGENTS.md, so the lint covers the new one.
+- `.agnix.toml` no longer disables six rules: PE-001, PE-005, CC-MEM-005, CC-MEM-006 and CC-MEM-008 (they existed only for the old generated AGENTS.md, so the lint covers the new one) and AS-014 (a Windows backslash false positive in a code example).
 
 ## [1.1.0] - 2026-09-24
 
